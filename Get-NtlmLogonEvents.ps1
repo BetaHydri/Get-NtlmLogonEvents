@@ -82,6 +82,17 @@
 
     Gets only the failed NTLMv1 logon attempts.
 
+    .EXAMPLE
+    .\Get-NtlmLogonEvents.ps1 -CorrelatePrivileged
+
+    Gets the last 30 NTLM logon events and correlates with Event ID 4672 to identify
+    privileged logon sessions. Adds IsPrivileged and PrivilegeList fields to the output.
+
+    .EXAMPLE
+    .\Get-NtlmLogonEvents.ps1 -CorrelatePrivileged -ExcludeNullSessions | Where-Object IsPrivileged
+
+    Finds NTLM logons that received special privileges (excluding null sessions).
+
     .PARAMETER NumEvents
     Maximum number of events to return per host. Default is 30.
 
@@ -115,6 +126,14 @@
     Failed logon events include additional fields: EventId, Status, FailureReason, and SubStatus.
     By default, only successful logons (Event ID 4624) are returned.
 
+    .PARAMETER CorrelatePrivileged
+    When specified, correlates NTLM logon events (Event ID 4624) with special privilege
+    assignment events (Event ID 4672) by matching TargetLogonId. Adds IsPrivileged (boolean)
+    and PrivilegeList (string) fields to the output, identifying which NTLM logons received
+    elevated privileges. This is critical for detecting privileged accounts using NTLM,
+    which are high-value targets for relay and pass-the-hash attacks.
+    Note: Only applies to successful logons (4624). Failed logons (4625) show IsPrivileged=$false.
+
     .PARAMETER Credential
     Optional PSCredential object for authenticating to remote computers.
 
@@ -128,7 +147,7 @@
 
     .NOTES
     Author:  Jan Tiedemann
-    Version: 3.0
+    Version: 3.1
     Requires: PowerShell 5.1+, elevated privileges to read Security log.
     For remote targets: WinRM must be enabled (winrm quickconfig).
     For DCs target: ActiveDirectory PowerShell module required.
@@ -147,6 +166,8 @@ param(
   [switch]$OnlyNTLMv1,
 
   [switch]$IncludeFailedLogons,
+
+  [switch]$CorrelatePrivileged,
 
   [string]$Domain,
 
@@ -249,6 +270,7 @@ function Convert-EventToObject {
       $ipAddress = $Event.Properties[19].Value
       $tcpPort = $Event.Properties[20].Value
       $impersonationLevel = $null  # 4625 does not have ImpersonationLevel
+      $targetLogonId = $null       # 4625 does not have a logon session ID
       $status = $Event.Properties[7].Value
       $failureReason = $Event.Properties[8].Value
       $subStatus = $Event.Properties[9].Value
@@ -263,6 +285,7 @@ function Convert-EventToObject {
       $processName = $Event.Properties[17].Value
       $ipAddress = $Event.Properties[18].Value
       $tcpPort = $Event.Properties[19].Value
+      $targetLogonId = $Event.Properties[7].Value -as [string]
       $status = $null
       $failureReason = $null
       $subStatus = $null
@@ -294,7 +317,89 @@ function Convert-EventToObject {
       Status                    = $status
       FailureReason             = $failureReason
       SubStatus                 = $subStatus
+      TargetLogonId             = $targetLogonId
       ComputerName              = $ComputerName
+    }
+  }
+}
+
+function Get-PrivilegedLogonLookup {
+  <#
+    .SYNOPSIS
+    Queries Event ID 4672 (special privileges assigned to new logon) and returns
+    a hashtable mapping SubjectLogonId to the assigned privilege list.
+  #>
+  [CmdletBinding()]
+  param(
+    [Parameter(Mandatory)]
+    [datetime]$StartTime,
+
+    [Parameter(Mandatory)]
+    [datetime]$EndTime
+  )
+
+  $startUtc = $StartTime.ToUniversalTime().ToString('yyyy-MM-ddTHH:mm:ss.fffZ')
+  $endUtc = $EndTime.ToUniversalTime().ToString('yyyy-MM-ddTHH:mm:ss.fffZ')
+
+  $xpath4672 = "Event[System[EventID=4672 and TimeCreated[@SystemTime>='$startUtc'] and TimeCreated[@SystemTime<='$endUtc']]]"
+
+  $lookup = @{}
+  try {
+    Get-WinEvent -LogName Security -FilterXPath $xpath4672 -ErrorAction Stop | ForEach-Object {
+      $logonId = $_.Properties[3].Value -as [string]
+      $privileges = ($_.Properties[4].Value -as [string]).Trim()
+      if ($logonId -and -not $lookup.ContainsKey($logonId)) {
+        $lookup[$logonId] = $privileges
+      }
+    }
+  }
+  catch {
+    if ($_.Exception.Message -notmatch 'No events were found') {
+      Write-Warning "Failed to query Event ID 4672 for privilege correlation: $_"
+    }
+  }
+
+  return $lookup
+}
+
+function Merge-PrivilegedLogonData {
+  <#
+    .SYNOPSIS
+    Correlates NTLM logon events with Event ID 4672 privilege data.
+    Adds IsPrivileged and PrivilegeList properties to each event object.
+  #>
+  [CmdletBinding()]
+  param(
+    [Parameter(Mandatory)]
+    [PSObject[]]$Events
+  )
+
+  # Only 4624 events have a valid TargetLogonId for correlation
+  $successEvents = @($Events | Where-Object { $_.EventId -eq 4624 -and $_.TargetLogonId })
+
+  if ($successEvents.Count -eq 0) {
+    # No 4624 events to correlate — add empty properties
+    foreach ($evt in $Events) {
+      $evt | Add-Member -NotePropertyName IsPrivileged -NotePropertyValue $false -Force
+      $evt | Add-Member -NotePropertyName PrivilegeList -NotePropertyValue $null -Force
+    }
+    return
+  }
+
+  $times = $successEvents | ForEach-Object { $_.Time }
+  $earliest = ($times | Measure-Object -Minimum).Minimum.AddSeconds(-2)
+  $latest = ($times | Measure-Object -Maximum).Maximum.AddSeconds(2)
+
+  $lookup = Get-PrivilegedLogonLookup -StartTime $earliest -EndTime $latest
+
+  foreach ($evt in $Events) {
+    if ($evt.EventId -eq 4624 -and $evt.TargetLogonId -and $lookup.ContainsKey($evt.TargetLogonId)) {
+      $evt | Add-Member -NotePropertyName IsPrivileged -NotePropertyValue $true -Force
+      $evt | Add-Member -NotePropertyName PrivilegeList -NotePropertyValue $lookup[$evt.TargetLogonId] -Force
+    }
+    else {
+      $evt | Add-Member -NotePropertyName IsPrivileged -NotePropertyValue $false -Force
+      $evt | Add-Member -NotePropertyName PrivilegeList -NotePropertyValue $null -Force
     }
   }
 }
@@ -324,12 +429,16 @@ $outputProperties = @(
   'EventId', 'Time', 'UserName', 'TargetDomainName', 'LogonType',
   'LogonProcessName', 'AuthenticationPackageName', 'WorkstationName',
   'LmPackageName', 'IPAddress', 'TCPPort', 'ImpersonationLevel',
-  'ProcessName', 'Status', 'FailureReason', 'SubStatus', 'ComputerName'
+  'ProcessName', 'Status', 'FailureReason', 'SubStatus', 'TargetLogonId'
 )
+if ($CorrelatePrivileged) {
+  $outputProperties += 'IsPrivileged', 'PrivilegeList'
+}
+$outputProperties += 'ComputerName'
 
 # Build the remote script block (shared for DCs and single remote host)
 $remoteScriptBlock = {
-  param($Filter, $MaxEvents)
+  param($Filter, $MaxEvents, $DoCorrelatePrivileged)
 
   # Re-declare the converter inside the remote session
   function Convert-RemoteEvent {
@@ -358,6 +467,7 @@ $remoteScriptBlock = {
       $ipAddress = $Event.Properties[19].Value
       $tcpPort = $Event.Properties[20].Value
       $impersonationLevel = $null
+      $targetLogonId = $null
       $status = $Event.Properties[7].Value
       $failureReason = $Event.Properties[8].Value
       $subStatus = $Event.Properties[9].Value
@@ -371,6 +481,7 @@ $remoteScriptBlock = {
       $processName = $Event.Properties[17].Value
       $ipAddress = $Event.Properties[18].Value
       $tcpPort = $Event.Properties[19].Value
+      $targetLogonId = $Event.Properties[7].Value -as [string]
       $status = $null
       $failureReason = $null
       $subStatus = $null
@@ -401,18 +512,67 @@ $remoteScriptBlock = {
       Status                    = $status
       FailureReason             = $failureReason
       SubStatus                 = $subStatus
+      TargetLogonId             = $targetLogonId
       ComputerName              = $env:COMPUTERNAME
     }
   }
 
-  Get-WinEvent -LogName Security -MaxEvents $MaxEvents -FilterXPath $Filter -ErrorAction Stop |
-  ForEach-Object { Convert-RemoteEvent -Event $_ -ComputerName $env:COMPUTERNAME }
+  $events = @(Get-WinEvent -LogName Security -MaxEvents $MaxEvents -FilterXPath $Filter -ErrorAction Stop |
+  ForEach-Object { Convert-RemoteEvent -Event $_ -ComputerName $env:COMPUTERNAME })
+
+  if ($DoCorrelatePrivileged -and $events.Count -gt 0) {
+    # Correlate with Event ID 4672 (special privileges assigned to new logon)
+    $successEvents = @($events | Where-Object { $_.EventId -eq 4624 -and $_.TargetLogonId })
+    if ($successEvents.Count -gt 0) {
+      $times = $successEvents | ForEach-Object { $_.Time }
+      $earliest = ($times | Measure-Object -Minimum).Minimum.AddSeconds(-2)
+      $latest = ($times | Measure-Object -Maximum).Maximum.AddSeconds(2)
+      $startUtc = $earliest.ToUniversalTime().ToString('yyyy-MM-ddTHH:mm:ss.fffZ')
+      $endUtc = $latest.ToUniversalTime().ToString('yyyy-MM-ddTHH:mm:ss.fffZ')
+      $xpath4672 = "Event[System[EventID=4672 and TimeCreated[@SystemTime>='$startUtc'] and TimeCreated[@SystemTime<='$endUtc']]]"
+
+      $lookup = @{}
+      try {
+        Get-WinEvent -LogName Security -FilterXPath $xpath4672 -ErrorAction Stop | ForEach-Object {
+          $logonId = $_.Properties[3].Value -as [string]
+          $privileges = ($_.Properties[4].Value -as [string]).Trim()
+          if ($logonId -and -not $lookup.ContainsKey($logonId)) {
+            $lookup[$logonId] = $privileges
+          }
+        }
+      }
+      catch {
+        if ($_.Exception.Message -notmatch 'No events were found') {
+          Write-Warning "Failed to query Event ID 4672: $_"
+        }
+      }
+
+      foreach ($evt in $events) {
+        if ($evt.EventId -eq 4624 -and $evt.TargetLogonId -and $lookup.ContainsKey($evt.TargetLogonId)) {
+          $evt | Add-Member -NotePropertyName IsPrivileged -NotePropertyValue $true -Force
+          $evt | Add-Member -NotePropertyName PrivilegeList -NotePropertyValue $lookup[$evt.TargetLogonId] -Force
+        }
+        else {
+          $evt | Add-Member -NotePropertyName IsPrivileged -NotePropertyValue $false -Force
+          $evt | Add-Member -NotePropertyName PrivilegeList -NotePropertyValue $null -Force
+        }
+      }
+    }
+    else {
+      foreach ($evt in $events) {
+        $evt | Add-Member -NotePropertyName IsPrivileged -NotePropertyValue $false -Force
+        $evt | Add-Member -NotePropertyName PrivilegeList -NotePropertyValue $null -Force
+      }
+    }
+  }
+
+  $events
 }
 
 # Build Invoke-Command splat (add credential only when provided)
 $invokeParams = @{
   ScriptBlock  = $remoteScriptBlock
-  ArgumentList = @($xpathFilter, $NumEvents)
+  ArgumentList = @($xpathFilter, $NumEvents, $CorrelatePrivileged.IsPresent)
   ErrorAction  = 'Stop'
 }
 if ($Credential -ne [System.Management.Automation.PSCredential]::Empty) {
@@ -425,8 +585,15 @@ if ($Target -eq '.') {
   Write-Verbose "Querying Security log for $ntlmVersionLabel events ($eventIdLabel) on $env:COMPUTERNAME"
 
   try {
-    Get-WinEvent -LogName Security -MaxEvents $NumEvents -FilterXPath $xpathFilter -ErrorAction Stop |
-    Convert-EventToObject -ComputerName $env:COMPUTERNAME
+    $events = @(Get-WinEvent -LogName Security -MaxEvents $NumEvents -FilterXPath $xpathFilter -ErrorAction Stop |
+    Convert-EventToObject -ComputerName $env:COMPUTERNAME)
+
+    if ($CorrelatePrivileged -and $events.Count -gt 0) {
+      Write-Verbose 'Correlating with Event ID 4672 (special privileges assigned to new logon)...'
+      Merge-PrivilegedLogonData -Events $events
+    }
+
+    $events
   }
   catch [Exception] {
     if ($_.Exception.Message -match 'No events were found') {
@@ -544,3 +711,15 @@ else {
 # [18]   ProcessName                -
 # [19]   IpAddress                  192.168.1.100
 # [20]   IpPort                     58560
+
+###############################################################################
+# Reference: Properties (EventData) fields of Event ID 4672
+#            (Special Privileges Assigned to New Logon)
+###############################################################################
+# Index  Property                   Example Value
+# -----  -------------------------  -------------------------------------------
+# [0]    SubjectUserSid             S-1-5-21-...
+# [1]    SubjectUserName            Administrator
+# [2]    SubjectDomainName          CONTOSO
+# [3]    SubjectLogonId             0x12345  (matches TargetLogonId in Event 4624)
+# [4]    PrivilegeList              SeDebugPrivilege\n\t\t\tSeBackupPrivilege\n\t\t\t...

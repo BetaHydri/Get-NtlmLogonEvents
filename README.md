@@ -29,6 +29,7 @@ This script exposes both `AuthenticationPackageName` and `LogonProcessName` so y
 - Query NTLMv1-only or all NTLM (v1, v2, LM) logon events
 - **Detect Negotiate→NTLM fallbacks** — `AuthenticationPackageName` and `LogonProcessName` fields reveal when Kerberos was attempted but fell back to NTLM
 - **Include failed NTLM logon attempts** (Event ID 4625) for brute-force and relay attack detection
+- **Correlate with privileged logons** — `-CorrelatePrivileged` cross-references Event ID 4672 to flag NTLM logons that received elevated privileges (high-value relay/pass-the-hash targets)
 - Target localhost, a specific remote server, or all domain controllers
 - Filter by date range (`-StartTime` / `-EndTime`)
 - Exclude null sessions (ANONYMOUS LOGON)
@@ -63,6 +64,7 @@ cd Get-NtlmLogonEvents
 | `-OnlyNTLMv1` | Switch | Off | Return only NTLMv1 events (default: all NTLM versions) |
 | `-ExcludeNullSessions` | Switch | Off | Filter out ANONYMOUS LOGON (null session) events |
 | `-IncludeFailedLogons` | Switch | Off | Also query failed logon attempts (Event ID 4625) |
+| `-CorrelatePrivileged` | Switch | Off | Correlate with Event ID 4672 to identify privileged NTLM logon sessions |
 | `-Domain` | String | — | AD domain to query when using `-Target DCs` (passed as `-Server` to `Get-ADDomainController`) |
 | `-StartTime` | DateTime | — | Only return events after this date/time |
 | `-EndTime` | DateTime | — | Only return events before this date/time |
@@ -125,6 +127,36 @@ cd Get-NtlmLogonEvents
 # Failed NTLMv1 attempts only
 .\Get-NtlmLogonEvents.ps1 -IncludeFailedLogons -OnlyNTLMv1 |
     Where-Object EventId -eq 4625
+```
+
+### Privileged Account Correlation
+
+NTLM logons with elevated privileges are high-value targets for relay and pass-the-hash attacks. The `-CorrelatePrivileged` switch cross-references Event ID 4672 (special privileges assigned to new logon) to flag these sessions.
+
+```powershell
+# Find all NTLM logons and show which ones received elevated privileges
+.\Get-NtlmLogonEvents.ps1 -CorrelatePrivileged
+
+# Show only privileged NTLM logons (excluding null sessions)
+.\Get-NtlmLogonEvents.ps1 -CorrelatePrivileged -ExcludeNullSessions |
+    Where-Object IsPrivileged
+
+# Privileged NTLMv1 logons — the highest risk combination
+.\Get-NtlmLogonEvents.ps1 -CorrelatePrivileged -OnlyNTLMv1 |
+    Where-Object IsPrivileged |
+    Select-Object Time, UserName, TargetDomainName, WorkstationName, IPAddress, PrivilegeList
+
+# Audit privileged NTLM usage across all DCs in the last 7 days
+.\Get-NtlmLogonEvents.ps1 -Target DCs -CorrelatePrivileged -ExcludeNullSessions `
+    -NumEvents 1000 -StartTime (Get-Date).AddDays(-7) |
+    Where-Object IsPrivileged |
+    Sort-Object UserName |
+    Format-Table Time, UserName, WorkstationName, IPAddress, LmPackageName, ComputerName
+
+# Count privileged vs. non-privileged NTLM logons
+.\Get-NtlmLogonEvents.ps1 -CorrelatePrivileged -NumEvents 500 |
+    Group-Object IsPrivileged |
+    Select-Object @{N='Category';E={if($_.Name -eq 'True'){'Privileged'}else{'Standard'}}}, Count
 ```
 
 ### Negotiate→NTLM Fallback Detection
@@ -310,6 +342,34 @@ SubStatus                 : 0xC0000064
 ComputerName              : DC01
 ```
 
+### Privileged NTLM Logon (with `-CorrelatePrivileged`)
+
+```
+EventId                   : 4624
+Time                      : 2/25/2026 10:23:45 AM
+UserName                  : admin.jsmith
+TargetDomainName          : CONTOSO
+LogonType                 : 3
+LogonProcessName          : NtLmSsp
+AuthenticationPackageName : NTLM
+WorkstationName           : WKS-PC042
+LmPackageName             : NTLM V2
+IPAddress                 : 192.168.1.50
+TCPPort                   : 49832
+ImpersonationLevel        : Impersonation
+ProcessName               : -
+Status                    :
+FailureReason             :
+SubStatus                 :
+TargetLogonId             : 0x12cff454c
+IsPrivileged              : True
+PrivilegeList             : SeSecurityPrivilege
+                            SeBackupPrivilege
+                            SeRestorePrivilege
+                            SeDebugPrivilege
+ComputerName              : DC01
+```
+
 ## Output Fields
 
 | Field | Description |
@@ -330,6 +390,9 @@ ComputerName              : DC01
 | `Status` | Top-level NTSTATUS failure code (4625 only, e.g., `0xC000006D`) |
 | `FailureReason` | Failure reason replacement string (4625 only, e.g., `%%2313`) |
 | `SubStatus` | Detailed NTSTATUS failure code (4625 only, e.g., `0xC0000064`) |
+| `TargetLogonId` | Logon session ID (4624 only) — used for correlation with Event ID 4672 |
+| `IsPrivileged` | Whether the logon session received special privileges (only with `-CorrelatePrivileged`) |
+| `PrivilegeList` | Privileges assigned to the logon session (only with `-CorrelatePrivileged`) |
 | `ComputerName` | Computer where the event was logged |
 
 ## Logon Types Reference
@@ -394,10 +457,11 @@ Common failure status codes seen in Event ID 4625:
 
 ## Testing
 
-The project includes a comprehensive Pester test suite with 88 tests covering:
+The project includes a comprehensive Pester test suite with 100+ tests covering:
 
 - **XPath filter generation** — default behavior, NTLMv1 filtering, null session exclusion, time range filters, failed logon inclusion, structural validation
-- **Event-to-object conversion** — field mapping for 4624 and 4625 events, impersonation level translation, Negotiate→NTLM fallback detection, pipeline input, output object shape
+- **Event-to-object conversion** — field mapping for 4624 and 4625 events, impersonation level translation, Negotiate→NTLM fallback detection, TargetLogonId extraction, pipeline input, output object shape
+- **Privileged logon correlation** — `Get-PrivilegedLogonLookup` time-range queries, `Merge-PrivilegedLogonData` property injection, IsPrivileged/PrivilegeList field mapping, handling of no matching 4672 events
 - **Failed logon (4625) mapping** — shifted property indices, Status/FailureReason/SubStatus extraction, mixed event type pipeline
 - **Script parameters** — type checks, default values, validation rules, CmdletBinding support
 - **Script execution (mocked)** — warning on no events, object output with mock events, ActiveDirectory module error handling
@@ -413,6 +477,7 @@ Invoke-Pester -Path .\Tests\Get-NtlmLogonEvents.Tests.ps1 -Output Detailed
 
 | Version | Date | Changes |
 |---|---|---|
+| 3.1 | 2026-02-25 | Added `-CorrelatePrivileged` switch for Event ID 4672 correlation; `TargetLogonId`, `IsPrivileged`, and `PrivilegeList` output fields; `Get-PrivilegedLogonLookup` and `Merge-PrivilegedLogonData` helper functions |
 | 3.0 | 2026-02-25 | Added `-IncludeFailedLogons` switch for Event ID 4625; `-Domain` parameter for multi-domain/forest DC queries; `AuthenticationPackageName` and `LogonProcessName` output fields to identify Negotiate→NTLM fallbacks; EventId/Status/FailureReason/SubStatus fields; separate property mapping for 4624 vs 4625 layouts |
 | 2.1 | 2026-02-25 | Fixed parameter splatting for optional DateTime parameters; relaxed pipeline type constraint for testability; added comprehensive Pester test suite (60 tests) |
 | 2.0 | 2026-02-25 | Major rewrite: structured output objects, XPath filtering, date range support, credential support, impersonation level translation |

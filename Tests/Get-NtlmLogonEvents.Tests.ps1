@@ -323,7 +323,7 @@ Describe 'Convert-EventToObject' {
                 'LogonProcessName', 'AuthenticationPackageName', 'WorkstationName',
                 'LmPackageName', 'IPAddress', 'TCPPort',
                 'ImpersonationLevel', 'ProcessName', 'Status', 'FailureReason',
-                'SubStatus', 'ComputerName'
+                'SubStatus', 'TargetLogonId', 'ComputerName'
             )
 
             foreach ($prop in $expectedProps) {
@@ -349,6 +349,12 @@ Describe 'Convert-EventToObject' {
             $result.Status | Should -BeNullOrEmpty
             $result.FailureReason | Should -BeNullOrEmpty
             $result.SubStatus | Should -BeNullOrEmpty
+        }
+
+        It 'Should map TargetLogonId from Properties[7] for 4624' {
+            $event = New-MockEvent
+            $result = Convert-EventToObject -Event $event -ComputerName 'SRV01'
+            $result.TargetLogonId | Should -Be '0x12345'
         }
 
         It 'Should map LogonProcessName from Properties[9] for 4624' {
@@ -558,6 +564,12 @@ Describe 'Convert-EventToObject (Event ID 4625 - Failed Logon)' {
             $result.ImpersonationLevel | Should -BeNullOrEmpty
         }
 
+        It 'Should set TargetLogonId to null for failed logons' {
+            $event = New-MockFailedEvent
+            $result = Convert-EventToObject -Event $event -ComputerName 'SRV01'
+            $result.TargetLogonId | Should -BeNullOrEmpty
+        }
+
         It 'Should map LogonProcessName from Properties[11] for 4625' {
             $event = New-MockFailedEvent
             $result = Convert-EventToObject -Event $event -ComputerName 'SRV01'
@@ -653,6 +665,10 @@ Describe 'Get-NtlmLogonEvents.ps1 Script Parameters' {
 
         It 'Should have IncludeFailedLogons as a switch' {
             $command.Parameters['IncludeFailedLogons'].SwitchParameter | Should -BeTrue
+        }
+
+        It 'Should have CorrelatePrivileged as a switch' {
+            $command.Parameters['CorrelatePrivileged'].SwitchParameter | Should -BeTrue
         }
 
         It 'Should have Domain parameter of type String' {
@@ -818,6 +834,7 @@ Describe 'Script file quality' {
         $scriptContent | Should -Match '\.PARAMETER ExcludeNullSessions'
         $scriptContent | Should -Match '\.PARAMETER OnlyNTLMv1'
         $scriptContent | Should -Match '\.PARAMETER IncludeFailedLogons'
+        $scriptContent | Should -Match '\.PARAMETER CorrelatePrivileged'
         $scriptContent | Should -Match '\.PARAMETER Domain'
         $scriptContent | Should -Match '\.PARAMETER StartTime'
         $scriptContent | Should -Match '\.PARAMETER EndTime'
@@ -849,5 +866,208 @@ Describe 'Script file quality' {
         $errors = $null
         [System.Management.Automation.Language.Parser]::ParseFile($scriptPath, [ref]$tokens, [ref]$errors)
         $errors | Should -HaveCount 0
+    }
+}
+
+Describe 'Get-PrivilegedLogonLookup' {
+
+    Context 'Basic behavior' {
+        It 'Should return an empty hashtable when no 4672 events are found' {
+            Mock Get-WinEvent {
+                throw [System.Exception]::new('No events were found that match the specified selection criteria.')
+            }
+
+            $result = Get-PrivilegedLogonLookup -StartTime ([datetime]'2026-01-01') -EndTime ([datetime]'2026-02-01')
+            $result | Should -BeOfType [hashtable]
+            $result.Count | Should -Be 0
+        }
+
+        It 'Should build a lookup hashtable from 4672 events' {
+            Mock Get-WinEvent {
+                $evt1 = [PSCustomObject]@{
+                    Id         = 4672
+                    Properties = @(
+                        [PSCustomObject]@{ Value = 'S-1-5-21-123' }     # [0] SubjectUserSid
+                        [PSCustomObject]@{ Value = 'admin' }            # [1] SubjectUserName
+                        [PSCustomObject]@{ Value = 'CONTOSO' }          # [2] SubjectDomainName
+                        [PSCustomObject]@{ Value = '0xABC' }            # [3] SubjectLogonId
+                        [PSCustomObject]@{ Value = 'SeDebugPrivilege' } # [4] PrivilegeList
+                    )
+                }
+                $evt2 = [PSCustomObject]@{
+                    Id         = 4672
+                    Properties = @(
+                        [PSCustomObject]@{ Value = 'S-1-5-21-456' }
+                        [PSCustomObject]@{ Value = 'svcaccount' }
+                        [PSCustomObject]@{ Value = 'CONTOSO' }
+                        [PSCustomObject]@{ Value = '0xDEF' }
+                        [PSCustomObject]@{ Value = "SeBackupPrivilege`n`t`t`tSeRestorePrivilege" }
+                    )
+                }
+                return @($evt1, $evt2)
+            }
+
+            $result = Get-PrivilegedLogonLookup -StartTime ([datetime]'2026-01-01') -EndTime ([datetime]'2026-02-01')
+            $result.Count | Should -Be 2
+            $result['0xABC'] | Should -Be 'SeDebugPrivilege'
+            $result.ContainsKey('0xDEF') | Should -BeTrue
+        }
+
+        It 'Should use the first occurrence when duplicate LogonIds exist' {
+            Mock Get-WinEvent {
+                $evt1 = [PSCustomObject]@{
+                    Id         = 4672
+                    Properties = @(
+                        [PSCustomObject]@{ Value = 'S-1-5-21-123' }
+                        [PSCustomObject]@{ Value = 'admin' }
+                        [PSCustomObject]@{ Value = 'CONTOSO' }
+                        [PSCustomObject]@{ Value = '0xABC' }
+                        [PSCustomObject]@{ Value = 'SeDebugPrivilege' }
+                    )
+                }
+                $evt2 = [PSCustomObject]@{
+                    Id         = 4672
+                    Properties = @(
+                        [PSCustomObject]@{ Value = 'S-1-5-21-123' }
+                        [PSCustomObject]@{ Value = 'admin' }
+                        [PSCustomObject]@{ Value = 'CONTOSO' }
+                        [PSCustomObject]@{ Value = '0xABC' }
+                        [PSCustomObject]@{ Value = 'SeBackupPrivilege' }
+                    )
+                }
+                return @($evt1, $evt2)
+            }
+
+            $result = Get-PrivilegedLogonLookup -StartTime ([datetime]'2026-01-01') -EndTime ([datetime]'2026-02-01')
+            $result.Count | Should -Be 1
+            $result['0xABC'] | Should -Be 'SeDebugPrivilege'
+        }
+
+        It 'Should write a warning on non-"no events found" errors' {
+            Mock Get-WinEvent {
+                throw [System.Exception]::new('Access denied')
+            }
+
+            $result = Get-PrivilegedLogonLookup -StartTime ([datetime]'2026-01-01') -EndTime ([datetime]'2026-02-01') 3>&1
+            $warnings = $result | Where-Object { $_ -is [System.Management.Automation.WarningRecord] }
+            $warnings | Should -Not -BeNullOrEmpty
+        }
+    }
+}
+
+Describe 'Merge-PrivilegedLogonData' {
+
+    BeforeAll {
+        # Helper: create a mock NTLM logon event object (as output by Convert-EventToObject)
+        function New-MockNtlmResult {
+            param(
+                [int]$EventId = 4624,
+                [string]$UserName = 'testuser',
+                [string]$TargetLogonId = '0xABC',
+                [datetime]$Time = (Get-Date)
+            )
+
+            [PSCustomObject]@{
+                PSTypeName                = 'NtlmLogonEvent'
+                EventId                   = $EventId
+                Time                      = $Time
+                UserName                  = $UserName
+                TargetDomainName          = 'CONTOSO'
+                LogonType                 = 3
+                LogonProcessName          = 'NtLmSsp'
+                AuthenticationPackageName = 'NTLM'
+                WorkstationName           = 'WKS01'
+                LmPackageName             = 'NTLM V2'
+                IPAddress                 = '10.0.0.1'
+                TCPPort                   = 49832
+                ImpersonationLevel        = 'Impersonation'
+                ProcessName               = '-'
+                Status                    = $null
+                FailureReason             = $null
+                SubStatus                 = $null
+                TargetLogonId             = $TargetLogonId
+                ComputerName              = 'SRV01'
+            }
+        }
+    }
+
+    Context 'Privileged logon correlation' {
+        It 'Should add IsPrivileged=true when 4672 matches TargetLogonId' {
+            $event = New-MockNtlmResult -TargetLogonId '0xABC'
+
+            Mock Get-PrivilegedLogonLookup { return @{ '0xABC' = 'SeDebugPrivilege' } }
+
+            Merge-PrivilegedLogonData -Events @($event)
+
+            $event.IsPrivileged | Should -BeTrue
+            $event.PrivilegeList | Should -Be 'SeDebugPrivilege'
+        }
+
+        It 'Should add IsPrivileged=false when no 4672 match exists' {
+            $event = New-MockNtlmResult -TargetLogonId '0xABC'
+
+            Mock Get-PrivilegedLogonLookup { return @{} }
+
+            Merge-PrivilegedLogonData -Events @($event)
+
+            $event.IsPrivileged | Should -BeFalse
+            $event.PrivilegeList | Should -BeNullOrEmpty
+        }
+
+        It 'Should set IsPrivileged=false for 4625 events regardless of lookup' {
+            $event = New-MockNtlmResult -EventId 4625 -TargetLogonId $null
+
+            Mock Get-PrivilegedLogonLookup { return @{ '0xABC' = 'SeDebugPrivilege' } }
+
+            # Need at least one 4624 event to trigger the lookup
+            $event4624 = New-MockNtlmResult -TargetLogonId '0xABC'
+            Merge-PrivilegedLogonData -Events @($event4624, $event)
+
+            $event.IsPrivileged | Should -BeFalse
+            $event.PrivilegeList | Should -BeNullOrEmpty
+        }
+
+        It 'Should handle mixed privileged and non-privileged events' {
+            $eventPriv = New-MockNtlmResult -UserName 'admin' -TargetLogonId '0x111'
+            $eventNorm = New-MockNtlmResult -UserName 'user1' -TargetLogonId '0x222'
+
+            Mock Get-PrivilegedLogonLookup { return @{ '0x111' = 'SeDebugPrivilege' } }
+
+            Merge-PrivilegedLogonData -Events @($eventPriv, $eventNorm)
+
+            $eventPriv.IsPrivileged | Should -BeTrue
+            $eventPriv.PrivilegeList | Should -Be 'SeDebugPrivilege'
+            $eventNorm.IsPrivileged | Should -BeFalse
+            $eventNorm.PrivilegeList | Should -BeNullOrEmpty
+        }
+
+        It 'Should handle events array with only 4625 events (no 4624 to correlate)' {
+            $event = New-MockNtlmResult -EventId 4625 -TargetLogonId $null
+
+            # Should not call Get-PrivilegedLogonLookup when there are no 4624 events
+            Mock Get-PrivilegedLogonLookup { return @{} }
+
+            Merge-PrivilegedLogonData -Events @($event)
+
+            $event.IsPrivileged | Should -BeFalse
+            $event.PrivilegeList | Should -BeNullOrEmpty
+            Should -Not -Invoke Get-PrivilegedLogonLookup
+        }
+
+        It 'Should use the time range of events for the 4672 query' {
+            $event1 = New-MockNtlmResult -TargetLogonId '0x111' -Time ([datetime]'2026-02-25 10:00:00')
+            $event2 = New-MockNtlmResult -TargetLogonId '0x222' -Time ([datetime]'2026-02-25 11:00:00')
+
+            Mock Get-PrivilegedLogonLookup {
+                # Verify time parameters are approximately correct
+                $StartTime | Should -BeLessOrEqual ([datetime]'2026-02-25 10:00:00')
+                $EndTime | Should -BeGreaterOrEqual ([datetime]'2026-02-25 11:00:00')
+                return @{}
+            }
+
+            Merge-PrivilegedLogonData -Events @($event1, $event2)
+
+            Should -Invoke Get-PrivilegedLogonLookup -Times 1
+        }
     }
 }
