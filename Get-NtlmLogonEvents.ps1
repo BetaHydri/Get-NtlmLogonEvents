@@ -226,28 +226,28 @@ function Convert-EventToObject {
 
     if ($isFailed) {
       # Event ID 4625 property indices (Status/FailureReason/SubStatus at [7]-[9] shift everything)
-      $logonType          = $Event.Properties[10].Value
-      $workstationName    = $Event.Properties[13].Value
-      $lmPackageName      = $Event.Properties[15].Value
-      $processName        = $Event.Properties[18].Value
-      $ipAddress          = $Event.Properties[19].Value
-      $tcpPort            = $Event.Properties[20].Value
+      $logonType = $Event.Properties[10].Value
+      $workstationName = $Event.Properties[13].Value
+      $lmPackageName = $Event.Properties[15].Value
+      $processName = $Event.Properties[18].Value
+      $ipAddress = $Event.Properties[19].Value
+      $tcpPort = $Event.Properties[20].Value
       $impersonationLevel = $null  # 4625 does not have ImpersonationLevel
-      $status             = $Event.Properties[7].Value
-      $failureReason      = $Event.Properties[8].Value
-      $subStatus          = $Event.Properties[9].Value
+      $status = $Event.Properties[7].Value
+      $failureReason = $Event.Properties[8].Value
+      $subStatus = $Event.Properties[9].Value
     }
     else {
       # Event ID 4624 property indices
-      $logonType       = $Event.Properties[8].Value
+      $logonType = $Event.Properties[8].Value
       $workstationName = $Event.Properties[11].Value
-      $lmPackageName   = $Event.Properties[14].Value
-      $processName     = $Event.Properties[17].Value
-      $ipAddress       = $Event.Properties[18].Value
-      $tcpPort         = $Event.Properties[19].Value
-      $status          = $null
-      $failureReason   = $null
-      $subStatus       = $null
+      $lmPackageName = $Event.Properties[14].Value
+      $processName = $Event.Properties[17].Value
+      $ipAddress = $Event.Properties[18].Value
+      $tcpPort = $Event.Properties[19].Value
+      $status = $null
+      $failureReason = $null
+      $subStatus = $null
 
       $rawImpersonation = $Event.Properties[20].Value -as [string]
       $impersonationLevel = if ($impersonationMap.ContainsKey($rawImpersonation)) {
@@ -328,27 +328,27 @@ $remoteScriptBlock = {
     $isFailed = ($eventId -eq 4625)
 
     if ($isFailed) {
-      $logonType          = $Event.Properties[10].Value
-      $workstationName    = $Event.Properties[13].Value
-      $lmPackageName      = $Event.Properties[15].Value
-      $processName        = $Event.Properties[18].Value
-      $ipAddress          = $Event.Properties[19].Value
-      $tcpPort            = $Event.Properties[20].Value
+      $logonType = $Event.Properties[10].Value
+      $workstationName = $Event.Properties[13].Value
+      $lmPackageName = $Event.Properties[15].Value
+      $processName = $Event.Properties[18].Value
+      $ipAddress = $Event.Properties[19].Value
+      $tcpPort = $Event.Properties[20].Value
       $impersonationLevel = $null
-      $status             = $Event.Properties[7].Value
-      $failureReason      = $Event.Properties[8].Value
-      $subStatus          = $Event.Properties[9].Value
+      $status = $Event.Properties[7].Value
+      $failureReason = $Event.Properties[8].Value
+      $subStatus = $Event.Properties[9].Value
     }
     else {
-      $logonType       = $Event.Properties[8].Value
+      $logonType = $Event.Properties[8].Value
       $workstationName = $Event.Properties[11].Value
-      $lmPackageName   = $Event.Properties[14].Value
-      $processName     = $Event.Properties[17].Value
-      $ipAddress       = $Event.Properties[18].Value
-      $tcpPort         = $Event.Properties[19].Value
-      $status          = $null
-      $failureReason   = $null
-      $subStatus       = $null
+      $lmPackageName = $Event.Properties[14].Value
+      $processName = $Event.Properties[17].Value
+      $ipAddress = $Event.Properties[18].Value
+      $tcpPort = $Event.Properties[19].Value
+      $status = $null
+      $failureReason = $null
+      $subStatus = $null
 
       $rawImpersonation = $Event.Properties[20].Value -as [string]
       $impersonationLevel = if ($impersonationMap.ContainsKey($rawImpersonation)) {
