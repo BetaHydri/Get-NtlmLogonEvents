@@ -723,42 +723,42 @@ Describe 'Get-NtlmLogonEvents.ps1 Script Execution (mocked)' {
     }
 
     Context 'Local host - events found' {
-        BeforeAll {
-            # Build mock properties array (21 items for indices 0-20)
-            $script:mockProps = @(
-                [PSCustomObject]@{ Value = 'S-1-0-0' }
-                [PSCustomObject]@{ Value = '-' }
-                [PSCustomObject]@{ Value = '-' }
-                [PSCustomObject]@{ Value = '0x0' }
-                [PSCustomObject]@{ Value = 'S-1-5-21-123' }
-                [PSCustomObject]@{ Value = 'testuser' }
-                [PSCustomObject]@{ Value = 'TESTDOMAIN' }
-                [PSCustomObject]@{ Value = '0xABC' }
-                [PSCustomObject]@{ Value = 3 }
-                [PSCustomObject]@{ Value = 'NtLmSsp' }
-                [PSCustomObject]@{ Value = 'NTLM' }
-                [PSCustomObject]@{ Value = 'TESTPC' }
-                [PSCustomObject]@{ Value = '{00000000-0000-0000-0000-000000000000}' }
-                [PSCustomObject]@{ Value = '-' }
-                [PSCustomObject]@{ Value = 'NTLM V2' }
-                [PSCustomObject]@{ Value = 128 }
-                [PSCustomObject]@{ Value = '0x0' }
-                [PSCustomObject]@{ Value = '-' }
-                [PSCustomObject]@{ Value = '10.0.0.1' }
-                [PSCustomObject]@{ Value = 50000 }
-                [PSCustomObject]@{ Value = '%%1833' }
-            )
-
-            $script:mockEvent = [PSCustomObject]@{
-                Id          = 4624
-                TimeCreated = [datetime]'2026-02-25 10:00:00'
-                Properties  = $script:mockProps
-            }
-            $script:mockEvent.PSObject.TypeNames.Insert(0, 'System.Diagnostics.Eventing.Reader.EventLogRecord')
-        }
-
         BeforeEach {
-            Mock Get-WinEvent { return $script:mockEvent }
+            # Build the mock event inline so it is available inside the mock
+            # scriptblock (Pester v5 mock blocks run in a separate session state,
+            # so $script: references from BeforeAll are not visible).
+            Mock Get-WinEvent {
+                $mockProps = @(
+                    [PSCustomObject]@{ Value = 'S-1-0-0' }          # [0]  SubjectUserSid
+                    [PSCustomObject]@{ Value = '-' }                 # [1]  SubjectUserName
+                    [PSCustomObject]@{ Value = '-' }                 # [2]  SubjectDomainName
+                    [PSCustomObject]@{ Value = '0x0' }               # [3]  SubjectLogonId
+                    [PSCustomObject]@{ Value = 'S-1-5-21-123' }     # [4]  TargetUserSid
+                    [PSCustomObject]@{ Value = 'testuser' }          # [5]  TargetUserName
+                    [PSCustomObject]@{ Value = 'TESTDOMAIN' }        # [6]  TargetDomainName
+                    [PSCustomObject]@{ Value = '0xABC' }             # [7]  TargetLogonId
+                    [PSCustomObject]@{ Value = 3 }                   # [8]  LogonType
+                    [PSCustomObject]@{ Value = 'NtLmSsp' }          # [9]  LogonProcessName
+                    [PSCustomObject]@{ Value = 'NTLM' }             # [10] AuthenticationPackageName
+                    [PSCustomObject]@{ Value = 'TESTPC' }            # [11] WorkstationName
+                    [PSCustomObject]@{ Value = '{00000000-0000-0000-0000-000000000000}' } # [12] LogonGuid
+                    [PSCustomObject]@{ Value = '-' }                 # [13] TransmittedServices
+                    [PSCustomObject]@{ Value = 'NTLM V2' }          # [14] LmPackageName
+                    [PSCustomObject]@{ Value = 128 }                 # [15] KeyLength
+                    [PSCustomObject]@{ Value = '0x0' }               # [16] ProcessId
+                    [PSCustomObject]@{ Value = '-' }                 # [17] ProcessName
+                    [PSCustomObject]@{ Value = '10.0.0.1' }          # [18] IpAddress
+                    [PSCustomObject]@{ Value = 50000 }               # [19] IpPort
+                    [PSCustomObject]@{ Value = '%%1833' }            # [20] ImpersonationLevel
+                )
+                $evt = [PSCustomObject]@{
+                    Id          = 4624
+                    TimeCreated = [datetime]'2026-02-25 10:00:00'
+                    Properties  = $mockProps
+                }
+                $evt.PSObject.TypeNames.Insert(0, 'System.Diagnostics.Eventing.Reader.EventLogRecord')
+                return $evt
+            }
         }
 
         It 'Should return objects when events exist' {
