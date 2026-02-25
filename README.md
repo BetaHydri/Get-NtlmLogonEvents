@@ -11,7 +11,7 @@ A PowerShell script to query Windows Security event logs for NTLM authentication
 
 ## Why This Matters
 
-NTLMv1 is a weak authentication protocol that is vulnerable to brute-force and relay attacks. Microsoft strongly recommends disabling NTLMv1 in favor of Kerberos or at minimum NTLMv2. This script helps you **find which users, workstations, and applications are still using NTLMv1** so you can remediate them before enforcing stronger authentication policies.
+NTLM (including NTLMv1, NTLMv2, and LM) is a legacy authentication protocol that is vulnerable to relay, brute-force, and pass-the-hash attacks. Microsoft strongly recommends Kerberos authentication instead. This script helps you **find which users, workstations, and applications are still using NTLM** so you can remediate them before enforcing stronger authentication policies.
 
 ## Features
 
@@ -37,7 +37,7 @@ NTLMv1 is a weak authentication protocol that is vulnerable to brute-force and r
 No installation needed. Clone or download the script and run it directly:
 
 ```powershell
-git clone https://github.com/yourrepo/Get-NtlmLogonEvents.git
+git clone https://github.com/BetaHydri/Get-NtlmLogonEvents.git
 cd Get-NtlmLogonEvents
 ```
 
@@ -47,7 +47,7 @@ cd Get-NtlmLogonEvents
 |---|---|---|---|
 | `-NumEvents` | Int | `30` | Maximum number of events to return per host |
 | `-Target` | String | `.` (localhost) | Target: `.` for localhost, `DCs` for all domain controllers, or a hostname |
-| `-IncludeAllNtlm` | Switch | Off | Include NTLMv1, NTLMv2, and LM events (default: NTLMv1 only) |
+| `-OnlyNTLMv1` | Switch | Off | Return only NTLMv1 events (default: all NTLM versions) |
 | `-ExcludeNullSessions` | Switch | Off | Filter out ANONYMOUS LOGON (null session) events |
 | `-StartTime` | DateTime | — | Only return events after this date/time |
 | `-EndTime` | DateTime | — | Only return events before this date/time |
@@ -55,7 +55,7 @@ cd Get-NtlmLogonEvents
 
 ## Usage Examples
 
-### Basic: NTLMv1 events on localhost
+### Basic: All NTLM events on localhost
 
 ```powershell
 .\Get-NtlmLogonEvents.ps1
@@ -73,16 +73,16 @@ cd Get-NtlmLogonEvents
 .\Get-NtlmLogonEvents.ps1 -Target server.contoso.com
 ```
 
-### All NTLM versions from a remote server
+### NTLMv1-only from a remote server
 
 ```powershell
-.\Get-NtlmLogonEvents.ps1 -Target server.contoso.com -IncludeAllNtlm
+.\Get-NtlmLogonEvents.ps1 -Target server.contoso.com -OnlyNTLMv1
 ```
 
 ### Query all domain controllers
 
 ```powershell
-.\Get-NtlmLogonEvents.ps1 -Target DCs -IncludeAllNtlm
+.\Get-NtlmLogonEvents.ps1 -Target DCs
 ```
 
 ### Exclude null sessions
@@ -106,14 +106,14 @@ cd Get-NtlmLogonEvents
 ### Export to CSV
 
 ```powershell
-.\Get-NtlmLogonEvents.ps1 -IncludeAllNtlm -NumEvents 1000 |
+.\Get-NtlmLogonEvents.ps1 -NumEvents 1000 |
     Export-Csv -Path .\ntlm_audit.csv -NoTypeInformation
 ```
 
 ### Export to JSON
 
 ```powershell
-.\Get-NtlmLogonEvents.ps1 -IncludeAllNtlm |
+.\Get-NtlmLogonEvents.ps1 |
     ConvertTo-Json -Depth 3 |
     Set-Content -Path .\ntlm_audit.json
 ```
@@ -121,7 +121,7 @@ cd Get-NtlmLogonEvents
 ### Pipeline: Group by user
 
 ```powershell
-.\Get-NtlmLogonEvents.ps1 -NumEvents 500 -IncludeAllNtlm |
+.\Get-NtlmLogonEvents.ps1 -NumEvents 500 |
     Group-Object -Property UserName |
     Sort-Object -Property Count -Descending |
     Select-Object Count, Name
