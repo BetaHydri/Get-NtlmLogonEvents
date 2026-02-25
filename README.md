@@ -481,8 +481,8 @@ Invoke-Pester -Path .\Tests\Get-NtlmLogonEvents.Tests.ps1 -Output Detailed
 |---|---|---|
 | 3.1 | 2026-02-25 | Added `-CorrelatePrivileged` switch for Event ID 4672 correlation; `TargetLogonId`, `IsPrivileged`, and `PrivilegeList` output fields; `Get-PrivilegedLogonLookup` and `Merge-PrivilegedLogonData` helper functions |
 | 3.0 | 2026-02-25 | Added `-IncludeFailedLogons` switch for Event ID 4625; `-Domain` parameter for multi-domain/forest DC queries; `AuthenticationPackageName` and `LogonProcessName` output fields to identify Negotiate→NTLM fallbacks; EventId/Status/FailureReason/SubStatus fields; separate property mapping for 4624 vs 4625 layouts |
-| 2.1 | 2026-02-25 | Fixed parameter splatting for optional DateTime parameters; relaxed pipeline type constraint for testability; added comprehensive Pester test suite (60 tests) |
-| 2.0 | 2026-02-25 | Major rewrite: structured output objects, XPath filtering, date range support, credential support, impersonation level translation |
+| 2.1 | 2023-05-25 | Fixed parameter splatting for optional DateTime parameters; relaxed pipeline type constraint for testability; added comprehensive Pester test suite (60 tests) |
+| 2.0 | 2023-05-04 | Major rewrite: structured output objects, XPath filtering, date range support, credential support, impersonation level translation |
 
 ## Contributing
 
