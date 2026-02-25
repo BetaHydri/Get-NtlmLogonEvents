@@ -655,6 +655,10 @@ Describe 'Get-NtlmLogonEvents.ps1 Script Parameters' {
             $command.Parameters['IncludeFailedLogons'].SwitchParameter | Should -BeTrue
         }
 
+        It 'Should have Domain parameter of type String' {
+            $command.Parameters['Domain'].ParameterType.Name | Should -Be 'String'
+        }
+
         It 'Should have StartTime parameter of type DateTime' {
             $command.Parameters['StartTime'].ParameterType.Name | Should -Be 'DateTime'
         }
@@ -797,6 +801,7 @@ Describe 'Script file quality' {
         $scriptContent | Should -Match '\.PARAMETER ExcludeNullSessions'
         $scriptContent | Should -Match '\.PARAMETER OnlyNTLMv1'
         $scriptContent | Should -Match '\.PARAMETER IncludeFailedLogons'
+        $scriptContent | Should -Match '\.PARAMETER Domain'
         $scriptContent | Should -Match '\.PARAMETER StartTime'
         $scriptContent | Should -Match '\.PARAMETER EndTime'
         $scriptContent | Should -Match '\.PARAMETER Credential'

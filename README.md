@@ -63,6 +63,7 @@ cd Get-NtlmLogonEvents
 | `-OnlyNTLMv1` | Switch | Off | Return only NTLMv1 events (default: all NTLM versions) |
 | `-ExcludeNullSessions` | Switch | Off | Filter out ANONYMOUS LOGON (null session) events |
 | `-IncludeFailedLogons` | Switch | Off | Also query failed logon attempts (Event ID 4625) |
+| `-Domain` | String | — | AD domain to query when using `-Target DCs` (passed as `-Server` to `Get-ADDomainController`) |
 | `-StartTime` | DateTime | — | Only return events after this date/time |
 | `-EndTime` | DateTime | — | Only return events before this date/time |
 | `-Credential` | PSCredential | — | Alternate credentials for remote connections |
@@ -83,6 +84,12 @@ cd Get-NtlmLogonEvents
 
 # Query all domain controllers
 .\Get-NtlmLogonEvents.ps1 -Target DCs
+
+# Query DCs in a specific domain (multi-domain forest or trusted domain)
+.\Get-NtlmLogonEvents.ps1 -Target DCs -Domain child.contoso.com
+
+# Query DCs in a trusted domain with alternate credentials
+.\Get-NtlmLogonEvents.ps1 -Target DCs -Domain partner.fabrikam.com -Credential (Get-Credential)
 
 # Use alternate credentials for remote connections
 .\Get-NtlmLogonEvents.ps1 -Target server.contoso.com -Credential (Get-Credential)
@@ -193,6 +200,12 @@ When Kerberos negotiation fails (e.g., missing SPNs, clock skew, DNS issues), Wi
     -ExcludeNullSessions `
     -StartTime (Get-Date).AddDays(-7) |
     Sort-Object Time
+
+# Full audit of a child domain
+.\Get-NtlmLogonEvents.ps1 -Target DCs -Domain child.contoso.com -NumEvents 5000 `
+    -ExcludeNullSessions -IncludeFailedLogons `
+    -StartTime (Get-Date).AddDays(-7) |
+    Export-Csv -Path .\child_domain_ntlm_audit.csv -NoTypeInformation
 
 # Full audit with failed logons included, exported to CSV
 .\Get-NtlmLogonEvents.ps1 -Target DCs -NumEvents 5000 `
@@ -387,7 +400,7 @@ Invoke-Pester -Path .\Tests\Get-NtlmLogonEvents.Tests.ps1 -Output Detailed
 
 | Version | Date | Changes |
 |---|---|---|
-| 3.0 | 2026-02-25 | Added `-IncludeFailedLogons` switch for Event ID 4625; `AuthenticationPackageName` and `LogonProcessName` output fields to identify Negotiate→NTLM fallbacks; EventId/Status/FailureReason/SubStatus fields; separate property mapping for 4624 vs 4625 layouts |
+| 3.0 | 2026-02-25 | Added `-IncludeFailedLogons` switch for Event ID 4625; `-Domain` parameter for multi-domain/forest DC queries; `AuthenticationPackageName` and `LogonProcessName` output fields to identify Negotiate→NTLM fallbacks; EventId/Status/FailureReason/SubStatus fields; separate property mapping for 4624 vs 4625 layouts |
 | 2.1 | 2026-02-25 | Fixed parameter splatting for optional DateTime parameters; relaxed pipeline type constraint for testability; added comprehensive Pester test suite (60 tests) |
 | 2.0 | 2026-02-25 | Major rewrite: structured output objects, XPath filtering, date range support, credential support, impersonation level translation |
 

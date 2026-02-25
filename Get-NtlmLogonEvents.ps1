@@ -42,6 +42,12 @@
     Requires WinRM and the ActiveDirectory PowerShell module.
 
     .EXAMPLE
+    .\Get-NtlmLogonEvents.ps1 -Target DCs -Domain child.contoso.com
+
+    Gets the last 30 NTLM logon events on each domain controller in the child.contoso.com domain.
+    Requires a trust relationship or appropriate credentials.
+
+    .EXAMPLE
     .\Get-NtlmLogonEvents.ps1 -ExcludeNullSessions
 
     Gets the last 30 NTLM logon events excluding ANONYMOUS LOGON (null sessions).
@@ -83,6 +89,12 @@
     Target computer(s). Default is localhost (".").
     Use "DCs" to query all domain controllers (requires ActiveDirectory module and WinRM).
     Use a fully qualified hostname to query a specific remote server (requires WinRM).
+
+    .PARAMETER Domain
+    Specifies the Active Directory domain to query when using -Target DCs.
+    This value is passed as -Server to Get-ADDomainController.
+    When omitted, the current user's domain is used.
+    Useful for multi-domain forests or querying trusted domains.
 
     .PARAMETER ExcludeNullSessions
     When specified, filters out ANONYMOUS LOGON (null session) events.
@@ -135,6 +147,8 @@ param(
   [switch]$OnlyNTLMv1,
 
   [switch]$IncludeFailedLogons,
+
+  [string]$Domain,
 
   [datetime]$StartTime,
 
@@ -435,8 +449,14 @@ elseif ($Target -eq 'DCs') {
     return
   }
 
-  $domainControllers = Get-ADDomainController -Filter * | Select-Object -ExpandProperty HostName
-  Write-Verbose "Querying Security log for $ntlmVersionLabel events on DCs: $($domainControllers -join ', ')"
+  $domainControllers = if ($Domain) {
+    Get-ADDomainController -Filter * -Server $Domain | Select-Object -ExpandProperty HostName
+  }
+  else {
+    Get-ADDomainController -Filter * | Select-Object -ExpandProperty HostName
+  }
+  $domainLabel = if ($Domain) { " in domain '$Domain'" } else { '' }
+  Write-Verbose "Querying Security log for $ntlmVersionLabel events on DCs$domainLabel: $($domainControllers -join ', ')"
 
   $invokeParams['ComputerName'] = $domainControllers
 
