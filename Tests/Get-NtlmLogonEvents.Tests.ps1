@@ -19,8 +19,10 @@ BeforeAll {
     $functions = $ast.FindAll({ $args[0] -is [System.Management.Automation.Language.FunctionDefinitionAst] }, $true)
 
     foreach ($func in $functions) {
+        # Relax [EventLogRecord] type constraint so mock PSCustomObjects are accepted
+        $funcText = $func.Extent.Text -replace '\[System\.Diagnostics\.Eventing\.Reader\.EventLogRecord\]', '[PSObject]'
         # Define each helper function in the test scope
-        Invoke-Expression $func.Extent.Text
+        Invoke-Expression $funcText
     }
 }
 
