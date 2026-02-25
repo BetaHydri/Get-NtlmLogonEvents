@@ -182,7 +182,7 @@ function Convert-EventToObject {
   [CmdletBinding()]
   param(
     [Parameter(Mandatory, ValueFromPipeline)]
-    [System.Diagnostics.Eventing.Reader.EventLogRecord]$Event,
+    [PSObject]$Event,
 
     [string]$ComputerName
   )
