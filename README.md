@@ -1,5 +1,12 @@
 # Get-NtlmLogonEvents
 
+[![PowerShell](https://img.shields.io/badge/PowerShell-5.1%2B-blue.svg?logo=powershell)](https://docs.microsoft.com/en-us/powershell/)
+[![Platform](https://img.shields.io/badge/Platform-Windows-0078D6.svg?logo=windows)](https://www.microsoft.com/windows)
+[![License](https://img.shields.io/github/license/BetaHydri/Get-NtlmLogonEvents)](LICENSE)
+[![GitHub stars](https://img.shields.io/github/stars/BetaHydri/Get-NtlmLogonEvents)](https://github.com/BetaHydri/Get-NtlmLogonEvents/stargazers)
+[![GitHub issues](https://img.shields.io/github/issues/BetaHydri/Get-NtlmLogonEvents)](https://github.com/BetaHydri/Get-NtlmLogonEvents/issues)
+[![GitHub last commit](https://img.shields.io/github/last-commit/BetaHydri/Get-NtlmLogonEvents)](https://github.com/BetaHydri/Get-NtlmLogonEvents/commits/main)
+
 A PowerShell script to query Windows Security event logs for NTLM authentication events (Event ID 4624). Designed for security auditing and identifying legacy NTLMv1 usage across your environment.
 
 ## Why This Matters

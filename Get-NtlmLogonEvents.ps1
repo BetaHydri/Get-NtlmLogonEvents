@@ -17,38 +17,38 @@
     .EXAMPLE
     .\Get-NtlmLogonEvents.ps1
 
-    Gets the last 30 NTLMv1 logon events from the localhost.
+    Gets the last 30 NTLM logon events (NTLMv1, NTLMv2, LM) from the localhost.
 
     .EXAMPLE
     .\Get-NtlmLogonEvents.ps1 -NumEvents 10
 
-    Gets the last 10 NTLMv1 logon events from the localhost.
+    Gets the last 10 NTLM logon events from the localhost.
 
     .EXAMPLE
     .\Get-NtlmLogonEvents.ps1 -Target server.contoso.com
 
-    Gets the last 30 NTLMv1 logon events from server.contoso.com via WinRM.
+    Gets the last 30 NTLM logon events from server.contoso.com via WinRM.
 
     .EXAMPLE
-    .\Get-NtlmLogonEvents.ps1 -Target server.contoso.com -IncludeAllNtlm
+    .\Get-NtlmLogonEvents.ps1 -Target server.contoso.com -OnlyNTLMv1
 
-    Gets the last 30 NTLMv1, NTLMv2 and LM logon events from server.contoso.com via WinRM.
+    Gets the last 30 NTLMv1-only logon events from server.contoso.com via WinRM.
 
     .EXAMPLE
-    .\Get-NtlmLogonEvents.ps1 -Target DCs -IncludeAllNtlm
+    .\Get-NtlmLogonEvents.ps1 -Target DCs
 
-    Gets the last 30 NTLMv1, NTLMv2 and LM logon events on each domain controller.
+    Gets the last 30 NTLM logon events on each domain controller.
     Requires WinRM and the ActiveDirectory PowerShell module.
 
     .EXAMPLE
     .\Get-NtlmLogonEvents.ps1 -ExcludeNullSessions
 
-    Gets the last 30 NTLMv1 logon events excluding ANONYMOUS LOGON (null sessions).
+    Gets the last 30 NTLM logon events excluding ANONYMOUS LOGON (null sessions).
 
     .EXAMPLE
     .\Get-NtlmLogonEvents.ps1 -StartTime (Get-Date).AddDays(-7) -EndTime (Get-Date)
 
-    Gets NTLMv1 logon events from the last 7 days.
+    Gets NTLM logon events from the last 7 days.
 
     .EXAMPLE
     .\Get-NtlmLogonEvents.ps1 -Target server.contoso.com -Credential (Get-Credential)
@@ -56,9 +56,14 @@
     Connects to server.contoso.com using alternate credentials.
 
     .EXAMPLE
-    .\Get-NtlmLogonEvents.ps1 -IncludeAllNtlm | Export-Csv -Path .\ntlm_events.csv -NoTypeInformation
+    .\Get-NtlmLogonEvents.ps1 | Export-Csv -Path .\ntlm_events.csv -NoTypeInformation
 
     Exports all NTLM logon events to a CSV file.
+
+    .EXAMPLE
+    .\Get-NtlmLogonEvents.ps1 -OnlyNTLMv1 -ExcludeNullSessions
+
+    Gets the last 30 NTLMv1-only logon events excluding null sessions.
 
     .PARAMETER NumEvents
     Maximum number of events to return per host. Default is 30.
@@ -72,9 +77,9 @@
     When specified, filters out ANONYMOUS LOGON (null session) events.
     This makes it easier to identify real user accounts using NTLM.
 
-    .PARAMETER IncludeAllNtlm
-    When specified, includes NTLMv1, NTLMv2, and LM events.
-    By default, only NTLMv1 events are returned.
+    .PARAMETER OnlyNTLMv1
+    When specified, returns only NTLMv1 events.
+    By default, all NTLM events (NTLMv1, NTLMv2, and LM) are returned.
 
     .PARAMETER StartTime
     Optional start date/time to filter events. Only events after this time are returned.
@@ -111,7 +116,7 @@ param(
 
     [switch]$ExcludeNullSessions,
 
-    [switch]$IncludeAllNtlm,
+    [switch]$OnlyNTLMv1,
 
     [datetime]$StartTime,
 
@@ -131,7 +136,7 @@ function Build-XPathFilter {
     #>
     [CmdletBinding()]
     param(
-        [switch]$IncludeAllNtlm,
+        [switch]$OnlyNTLMv1,
         [switch]$ExcludeNullSessions,
         [datetime]$StartTime,
         [datetime]$EndTime
@@ -153,11 +158,11 @@ function Build-XPathFilter {
     $systemPart = "System[($( $systemFilters -join ' and ' ))]"
 
     # NTLM version filter
-    if ($IncludeAllNtlm) {
-        $ntlmPart = "EventData[Data[@Name='LmPackageName']!='-']"
+    if ($OnlyNTLMv1) {
+        $ntlmPart = "EventData[Data[@Name='LmPackageName']='NTLM V1']"
     }
     else {
-        $ntlmPart = "EventData[Data[@Name='LmPackageName']='NTLM V1']"
+        $ntlmPart = "EventData[Data[@Name='LmPackageName']!='-']"
     }
 
     # Null session filter
@@ -221,12 +226,12 @@ function Convert-EventToObject {
 
 # Build the XPath filter
 $xpathFilter = Build-XPathFilter `
-    -IncludeAllNtlm:$IncludeAllNtlm `
+    -OnlyNTLMv1:$OnlyNTLMv1 `
     -ExcludeNullSessions:$ExcludeNullSessions `
     -StartTime $StartTime `
     -EndTime $EndTime
 
-$ntlmVersionLabel = if ($IncludeAllNtlm) { 'NTLM (v1, v2, LM)' } else { 'NTLMv1' }
+$ntlmVersionLabel = if ($OnlyNTLMv1) { 'NTLMv1' } else { 'NTLM (v1, v2, LM)' }
 
 # Output properties for consistent column ordering
 $outputProperties = @(
