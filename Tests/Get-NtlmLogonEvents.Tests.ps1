@@ -619,8 +619,9 @@ Describe 'Convert-EventToObject (Event ID 4625 - Failed Logon)' {
             $results[1].Status | Should -Not -BeNullOrEmpty
         }
     }
+}
 
-    Describe 'Get-NtlmLogonEvents.ps1 Script Parameters' {
+Describe 'Get-NtlmLogonEvents.ps1 Script Parameters' {
 
         BeforeAll {
             $scriptPath = Join-Path (Split-Path $PSScriptRoot -Parent) 'Get-NtlmLogonEvents.ps1'
@@ -736,6 +737,7 @@ Describe 'Convert-EventToObject (Event ID 4625 - Failed Logon)' {
                 )
 
                 $mockEvent = [PSCustomObject]@{
+                    Id          = 4624
                     TimeCreated = [datetime]'2026-02-25 10:00:00'
                     Properties  = $mockProps
                 }

@@ -287,7 +287,7 @@ ComputerName              : DC01
 
 ## Testing
 
-The project includes a comprehensive Pester test suite with 60 tests covering:
+The project includes a comprehensive Pester test suite with 87 tests covering:
 
 - **XPath filter generation** — default behavior, NTLMv1 filtering, null session exclusion, time range filters, structural validation
 - **Event-to-object conversion** — field mapping, impersonation level translation, pipeline input, output object shape
