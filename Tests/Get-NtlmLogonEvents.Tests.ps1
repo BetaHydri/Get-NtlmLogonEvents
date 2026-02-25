@@ -698,14 +698,23 @@ Describe 'Get-NtlmLogonEvents.ps1 Script Execution (mocked)' {
     BeforeAll {
         $scriptPath = Join-Path (Split-Path $PSScriptRoot -Parent) 'Get-NtlmLogonEvents.ps1'
         Import-Module Microsoft.PowerShell.Diagnostics -ErrorAction SilentlyContinue
+
+        # Safety-net: prevent any real Get-WinEvent / Invoke-Command call from
+        # reaching the Security log or remote hosts if context-level mocks fail.
+        Mock Get-WinEvent {
+            throw [System.Exception]::new('No events were found that match the specified selection criteria.')
+        }
+        Mock Invoke-Command { }
     }
 
     Context 'Local host - no events found' {
-        It 'Should emit a warning when no events are found' {
+        BeforeEach {
             Mock Get-WinEvent {
                 throw [System.Exception]::new('No events were found that match the specified selection criteria.')
             }
+        }
 
+        It 'Should emit a warning when no events are found' {
             $result = & $scriptPath 3>&1
             # The warning stream should contain our message
             $warnings = $result | Where-Object { $_ -is [System.Management.Automation.WarningRecord] }
@@ -714,9 +723,9 @@ Describe 'Get-NtlmLogonEvents.ps1 Script Execution (mocked)' {
     }
 
     Context 'Local host - events found' {
-        It 'Should return objects when events exist' {
+        BeforeAll {
             # Build mock properties array (21 items for indices 0-20)
-            $mockProps = @(
+            $script:mockProps = @(
                 [PSCustomObject]@{ Value = 'S-1-0-0' }
                 [PSCustomObject]@{ Value = '-' }
                 [PSCustomObject]@{ Value = '-' }
@@ -740,15 +749,19 @@ Describe 'Get-NtlmLogonEvents.ps1 Script Execution (mocked)' {
                 [PSCustomObject]@{ Value = '%%1833' }
             )
 
-            $mockEvent = [PSCustomObject]@{
+            $script:mockEvent = [PSCustomObject]@{
                 Id          = 4624
                 TimeCreated = [datetime]'2026-02-25 10:00:00'
-                Properties  = $mockProps
+                Properties  = $script:mockProps
             }
-            $mockEvent.PSObject.TypeNames.Insert(0, 'System.Diagnostics.Eventing.Reader.EventLogRecord')
+            $script:mockEvent.PSObject.TypeNames.Insert(0, 'System.Diagnostics.Eventing.Reader.EventLogRecord')
+        }
 
-            Mock Get-WinEvent { return $mockEvent }
+        BeforeEach {
+            Mock Get-WinEvent { return $script:mockEvent }
+        }
 
+        It 'Should return objects when events exist' {
             $result = & $scriptPath -NumEvents 1
             $result | Should -Not -BeNullOrEmpty
             $result.UserName | Should -Be 'testuser'
@@ -758,9 +771,13 @@ Describe 'Get-NtlmLogonEvents.ps1 Script Execution (mocked)' {
     }
 
     Context 'DCs target without ActiveDirectory module' {
-        It 'Should emit an error if ActiveDirectory module is not available' {
-            Mock Import-Module { throw 'Module not found' }
+        BeforeEach {
+            Mock Import-Module { throw 'Module not found' } -ParameterFilter {
+                $Name -eq 'ActiveDirectory'
+            }
+        }
 
+        It 'Should emit an error if ActiveDirectory module is not available' {
             $result = & $scriptPath -Target DCs 2>&1
             $errors = $result | Where-Object { $_ -is [System.Management.Automation.ErrorRecord] }
             $errors | Should -Not -BeNullOrEmpty

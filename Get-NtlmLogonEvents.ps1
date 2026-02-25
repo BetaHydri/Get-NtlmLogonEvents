@@ -456,7 +456,7 @@ elseif ($Target -eq 'DCs') {
     Get-ADDomainController -Filter * | Select-Object -ExpandProperty HostName
   }
   $domainLabel = if ($Domain) { " in domain '$Domain'" } else { '' }
-  Write-Verbose "Querying Security log for $ntlmVersionLabel events on DCs$domainLabel: $($domainControllers -join ', ')"
+  Write-Verbose "Querying Security log for $ntlmVersionLabel events on DCs${domainLabel}: $($domainControllers -join ', ')"
 
   $invokeParams['ComputerName'] = $domainControllers
 
