@@ -289,8 +289,9 @@ ComputerName              : DC01
 
 The project includes a comprehensive Pester test suite with 87 tests covering:
 
-- **XPath filter generation** — default behavior, NTLMv1 filtering, null session exclusion, time range filters, structural validation
-- **Event-to-object conversion** — field mapping, impersonation level translation, pipeline input, output object shape
+- **XPath filter generation** — default behavior, NTLMv1 filtering, null session exclusion, time range filters, failed logon inclusion, structural validation
+- **Event-to-object conversion** — field mapping for 4624 and 4625 events, impersonation level translation, Negotiate→NTLM fallback detection, pipeline input, output object shape
+- **Failed logon (4625) mapping** — shifted property indices, Status/FailureReason/SubStatus extraction, mixed event type pipeline
 - **Script parameters** — type checks, default values, validation rules, CmdletBinding support
 - **Script execution (mocked)** — warning on no events, object output with mock events, ActiveDirectory module error handling
 - **Script file quality** — help block, coding standards, absence of deprecated patterns
