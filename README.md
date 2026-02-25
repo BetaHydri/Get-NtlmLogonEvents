@@ -13,6 +13,17 @@ A PowerShell script to query Windows Security event logs for NTLM authentication
 
 NTLM (including NTLMv1, NTLMv2, and LM) is a legacy authentication protocol that is vulnerable to relay, brute-force, and pass-the-hash attacks. Microsoft strongly recommends Kerberos authentication instead. This script helps you **find which users, workstations, and applications are still using NTLM** so you can remediate them before enforcing stronger authentication policies.
 
+### Direct NTLM vs. Negotiate Fallback
+
+Not all NTLM usage is the same. Understanding *why* NTLM was used is critical for choosing the right fix:
+
+| Scenario | `AuthenticationPackageName` | `LogonProcessName` | Root Cause | Remediation |
+|---|---|---|---|---|
+| **Direct NTLM** | `NTLM` | `NtLmSsp` | App is hardcoded to NTLM | Change app config or code to use Negotiate/Kerberos |
+| **Negotiate→NTLM fallback** | `Negotiate` | `Negotiate` | Kerberos was tried but failed | Fix SPNs, DNS, clock skew, or trust issues |
+
+This script exposes both `AuthenticationPackageName` and `LogonProcessName` so you can tell these apart at a glance.
+
 ## Features
 
 - Query NTLMv1-only or all NTLM (v1, v2, LM) logon events
@@ -58,110 +69,164 @@ cd Get-NtlmLogonEvents
 
 ## Usage Examples
 
-### Basic: All NTLM events on localhost
+### Basic Usage
 
 ```powershell
+# All NTLM events on localhost (last 30)
 .\Get-NtlmLogonEvents.ps1
-```
 
-### Limit to 10 events
-
-```powershell
+# Limit to 10 events
 .\Get-NtlmLogonEvents.ps1 -NumEvents 10
-```
 
-### Query a remote server
-
-```powershell
+# Query a remote server
 .\Get-NtlmLogonEvents.ps1 -Target server.contoso.com
-```
 
-### NTLMv1-only from a remote server
-
-```powershell
-.\Get-NtlmLogonEvents.ps1 -Target server.contoso.com -OnlyNTLMv1
-```
-
-### Query all domain controllers
-
-```powershell
+# Query all domain controllers
 .\Get-NtlmLogonEvents.ps1 -Target DCs
-```
 
-### Exclude null sessions
-
-```powershell
-.\Get-NtlmLogonEvents.ps1 -ExcludeNullSessions
-```
-
-### Filter by date range (last 7 days)
-
-```powershell
-.\Get-NtlmLogonEvents.ps1 -StartTime (Get-Date).AddDays(-7)
-```
-
-### Use alternate credentials
-
-```powershell
+# Use alternate credentials for remote connections
 .\Get-NtlmLogonEvents.ps1 -Target server.contoso.com -Credential (Get-Credential)
-```
 
-### Export to CSV
-
-```powershell
-.\Get-NtlmLogonEvents.ps1 -NumEvents 1000 |
-    Export-Csv -Path .\ntlm_audit.csv -NoTypeInformation
-```
-
-### Export to JSON
-
-```powershell
-.\Get-NtlmLogonEvents.ps1 |
-    ConvertTo-Json -Depth 3 |
-    Set-Content -Path .\ntlm_audit.json
-```
-
-### Pipeline: Group by user
-
-```powershell
-.\Get-NtlmLogonEvents.ps1 -NumEvents 500 |
-    Group-Object -Property UserName |
-    Sort-Object -Property Count -Descending |
-    Select-Object Count, Name
-```
-
-### Pipeline: Find unique source IPs
-
-```powershell
-.\Get-NtlmLogonEvents.ps1 -NumEvents 500 |
-    Select-Object -ExpandProperty IPAddress -Unique
-```
-
-### Verbose output for troubleshooting
-
-```powershell
+# Verbose output for troubleshooting
 .\Get-NtlmLogonEvents.ps1 -Target DCs -Verbose
 ```
 
-### Include failed NTLM logon attempts
+### Filtering with Script Parameters
 
 ```powershell
+# Only NTLMv1 events (most insecure — prioritize these)
+.\Get-NtlmLogonEvents.ps1 -OnlyNTLMv1
+
+# NTLMv1-only from a specific server
+.\Get-NtlmLogonEvents.ps1 -Target server.contoso.com -OnlyNTLMv1
+
+# Exclude null sessions (ANONYMOUS LOGON) to focus on real users
+.\Get-NtlmLogonEvents.ps1 -ExcludeNullSessions
+
+# Combine: NTLMv1 only, no null sessions
+.\Get-NtlmLogonEvents.ps1 -OnlyNTLMv1 -ExcludeNullSessions
+
+# Events from the last 7 days
+.\Get-NtlmLogonEvents.ps1 -StartTime (Get-Date).AddDays(-7)
+
+# Events within a specific date range
+.\Get-NtlmLogonEvents.ps1 -StartTime '2026-02-01' -EndTime '2026-02-28'
+
+# Include failed logon attempts (Event ID 4625)
 .\Get-NtlmLogonEvents.ps1 -IncludeFailedLogons
-```
 
-### Failed NTLMv1 attempts only
-
-```powershell
+# Failed NTLMv1 attempts only
 .\Get-NtlmLogonEvents.ps1 -IncludeFailedLogons -OnlyNTLMv1 |
     Where-Object EventId -eq 4625
 ```
 
-### Find Negotiate→NTLM fallbacks (Kerberos failed, fell back to NTLM)
+### Negotiate→NTLM Fallback Detection
+
+When Kerberos negotiation fails (e.g., missing SPNs, clock skew, DNS issues), Windows silently falls back to NTLM via the Negotiate package. These events look like normal logons but indicate a Kerberos configuration problem.
 
 ```powershell
+# Find all Negotiate→NTLM fallbacks (Kerberos was tried but failed)
+.\Get-NtlmLogonEvents.ps1 -NumEvents 500 |
+    Where-Object AuthenticationPackageName -eq 'Negotiate'
+
+# Compare direct NTLM vs. Negotiate fallback — group by auth package
+.\Get-NtlmLogonEvents.ps1 -NumEvents 1000 |
+    Group-Object -Property AuthenticationPackageName |
+    Select-Object Count, Name
+
+# Show only fallbacks with workstation and user details
 .\Get-NtlmLogonEvents.ps1 -NumEvents 500 |
     Where-Object AuthenticationPackageName -eq 'Negotiate' |
-    Select-Object UserName, WorkstationName, LmPackageName, IPAddress
+    Select-Object UserName, TargetDomainName, WorkstationName, LmPackageName, IPAddress
+
+# Find fallbacks on domain controllers (likely SPN or trust issues)
+.\Get-NtlmLogonEvents.ps1 -Target DCs -NumEvents 200 |
+    Where-Object AuthenticationPackageName -eq 'Negotiate' |
+    Sort-Object WorkstationName |
+    Format-Table Time, UserName, WorkstationName, LmPackageName, IPAddress
+```
+
+### Failed Logon Analysis
+
+```powershell
+# Show only failed logon attempts
+.\Get-NtlmLogonEvents.ps1 -IncludeFailedLogons |
+    Where-Object EventId -eq 4625
+
+# Failed logons grouped by source IP (spot brute-force attacks)
+.\Get-NtlmLogonEvents.ps1 -IncludeFailedLogons -NumEvents 1000 |
+    Where-Object EventId -eq 4625 |
+    Group-Object -Property IPAddress |
+    Sort-Object -Property Count -Descending |
+    Select-Object Count, Name
+
+# Failed logons from the last 24 hours with status codes
+.\Get-NtlmLogonEvents.ps1 -IncludeFailedLogons -StartTime (Get-Date).AddHours(-24) |
+    Where-Object EventId -eq 4625 |
+    Select-Object Time, UserName, IPAddress, WorkstationName, Status, SubStatus
+
+# Compare successful vs. failed logons side by side
+.\Get-NtlmLogonEvents.ps1 -IncludeFailedLogons -NumEvents 500 |
+    Group-Object EventId |
+    Select-Object @{N='EventType';E={if($_.Name -eq '4624'){'Success'}else{'Failed'}}}, Count
+```
+
+### Security Audit Recipes
+
+```powershell
+# Top 10 users still using NTLM
+.\Get-NtlmLogonEvents.ps1 -NumEvents 1000 -ExcludeNullSessions |
+    Group-Object -Property UserName |
+    Sort-Object -Property Count -Descending |
+    Select-Object -First 10 Count, Name
+
+# Find workstations still sending NTLMv1 (highest risk)
+.\Get-NtlmLogonEvents.ps1 -OnlyNTLMv1 -NumEvents 500 |
+    Select-Object -ExpandProperty WorkstationName -Unique
+
+# Find unique source IPs using NTLM
+.\Get-NtlmLogonEvents.ps1 -NumEvents 500 |
+    Select-Object -ExpandProperty IPAddress -Unique
+
+# Full audit: all NTLM events across DCs, last 7 days, no null sessions
+.\Get-NtlmLogonEvents.ps1 -Target DCs -NumEvents 5000 `
+    -ExcludeNullSessions `
+    -StartTime (Get-Date).AddDays(-7) |
+    Sort-Object Time
+
+# Full audit with failed logons included, exported to CSV
+.\Get-NtlmLogonEvents.ps1 -Target DCs -NumEvents 5000 `
+    -IncludeFailedLogons -ExcludeNullSessions `
+    -StartTime (Get-Date).AddDays(-7) |
+    Export-Csv -Path .\ntlm_audit.csv -NoTypeInformation
+
+# Categorize each event: Direct NTLM vs. Negotiate Fallback vs. Failed
+.\Get-NtlmLogonEvents.ps1 -IncludeFailedLogons -NumEvents 500 |
+    Select-Object Time, UserName, WorkstationName, IPAddress, LmPackageName,
+        @{N='Category';E={
+            if ($_.EventId -eq 4625) { 'Failed' }
+            elseif ($_.AuthenticationPackageName -eq 'Negotiate') { 'Negotiate Fallback' }
+            else { 'Direct NTLM' }
+        }} |
+    Format-Table -AutoSize
+```
+
+### Export Options
+
+```powershell
+# Export to CSV
+.\Get-NtlmLogonEvents.ps1 -NumEvents 1000 |
+    Export-Csv -Path .\ntlm_audit.csv -NoTypeInformation
+
+# Export to JSON
+.\Get-NtlmLogonEvents.ps1 |
+    ConvertTo-Json -Depth 3 |
+    Set-Content -Path .\ntlm_audit.json
+
+# HTML report
+.\Get-NtlmLogonEvents.ps1 -NumEvents 200 |
+    ConvertTo-Html -Title 'NTLM Audit Report' |
+    Set-Content -Path .\ntlm_report.html
 ```
 
 ## Sample Output
@@ -267,6 +332,22 @@ ComputerName              : DC01
 | 9 | NewCredentials | RunAs with `/netonly` |
 | 10 | RemoteInteractive | RDP / Terminal Services |
 | 11 | CachedInteractive | Cached domain credentials |
+
+## NTSTATUS Codes Reference
+
+Common failure status codes seen in Event ID 4625:
+
+| Status / SubStatus | Meaning |
+|---|---|
+| `0xC000006D` | Logon failure — bad username or password |
+| `0xC000006A` | Incorrect password |
+| `0xC0000064` | User does not exist |
+| `0xC0000072` | Account disabled |
+| `0xC0000234` | Account locked out |
+| `0xC0000193` | Account expired |
+| `0xC0000071` | Password expired |
+| `0xC0000133` | Clock skew too great between client and server |
+| `0xC0000224` | User must change password at next logon |
 
 ## Troubleshooting
 
