@@ -108,116 +108,117 @@
 
 [CmdletBinding()]
 param(
-    [ValidateRange(1, [int]::MaxValue)]
-    [int]$NumEvents = 30,
+  [ValidateRange(1, [int]::MaxValue)]
+  [int]$NumEvents = 30,
 
-    [ValidateNotNullOrEmpty()]
-    [string]$Target = '.',
+  [ValidateNotNullOrEmpty()]
+  [string]$Target = '.',
 
-    [switch]$ExcludeNullSessions,
+  [switch]$ExcludeNullSessions,
 
-    [switch]$OnlyNTLMv1,
+  [switch]$OnlyNTLMv1,
 
-    [datetime]$StartTime,
+  [datetime]$StartTime,
 
-    [datetime]$EndTime,
+  [datetime]$EndTime,
 
-    [System.Management.Automation.PSCredential]
-    [System.Management.Automation.Credential()]
-    $Credential = [System.Management.Automation.PSCredential]::Empty
+  [System.Management.Automation.PSCredential]
+  [System.Management.Automation.Credential()]
+  $Credential = [System.Management.Automation.PSCredential]::Empty
 )
 
 #region Helper Functions
 
 function Build-XPathFilter {
-    <#
+  <#
     .SYNOPSIS
     Builds the XPath filter string for querying Event ID 4624 with NTLM constraints.
     #>
-    [CmdletBinding()]
-    param(
-        [switch]$OnlyNTLMv1,
-        [switch]$ExcludeNullSessions,
-        [datetime]$StartTime,
-        [datetime]$EndTime
-    )
+  [CmdletBinding()]
+  param(
+    [switch]$OnlyNTLMv1,
+    [switch]$ExcludeNullSessions,
+    [datetime]$StartTime,
+    [datetime]$EndTime
+  )
 
-    # Base: Event ID 4624
-    $systemFilters = @('EventID=4624')
+  # Base: Event ID 4624
+  $systemFilters = @('EventID=4624')
 
-    # Time range filters
-    if ($StartTime) {
-        $startUtc = $StartTime.ToUniversalTime().ToString('yyyy-MM-ddTHH:mm:ss.fffZ')
-        $systemFilters += "TimeCreated[@SystemTime>='$startUtc']"
-    }
-    if ($EndTime) {
-        $endUtc = $EndTime.ToUniversalTime().ToString('yyyy-MM-ddTHH:mm:ss.fffZ')
-        $systemFilters += "TimeCreated[@SystemTime<='$endUtc']"
-    }
+  # Time range filters
+  if ($StartTime) {
+    $startUtc = $StartTime.ToUniversalTime().ToString('yyyy-MM-ddTHH:mm:ss.fffZ')
+    $systemFilters += "TimeCreated[@SystemTime>='$startUtc']"
+  }
+  if ($EndTime) {
+    $endUtc = $EndTime.ToUniversalTime().ToString('yyyy-MM-ddTHH:mm:ss.fffZ')
+    $systemFilters += "TimeCreated[@SystemTime<='$endUtc']"
+  }
 
-    $systemPart = "System[($( $systemFilters -join ' and ' ))]"
+  $systemPart = "System[($( $systemFilters -join ' and ' ))]"
 
-    # NTLM version filter
-    if ($OnlyNTLMv1) {
-        $ntlmPart = "EventData[Data[@Name='LmPackageName']='NTLM V1']"
-    }
-    else {
-        $ntlmPart = "EventData[Data[@Name='LmPackageName']!='-']"
-    }
+  # NTLM version filter
+  if ($OnlyNTLMv1) {
+    $ntlmPart = "EventData[Data[@Name='LmPackageName']='NTLM V1']"
+  }
+  else {
+    $ntlmPart = "EventData[Data[@Name='LmPackageName']!='-']"
+  }
 
-    # Null session filter
-    $parts = @("Event[$systemPart]", "Event[$ntlmPart]")
-    if ($ExcludeNullSessions) {
-        $parts += "Event[EventData[Data[@Name='TargetUserName']!='ANONYMOUS LOGON']]"
-    }
+  # Null session filter
+  $parts = @("Event[$systemPart]", "Event[$ntlmPart]")
+  if ($ExcludeNullSessions) {
+    $parts += "Event[EventData[Data[@Name='TargetUserName']!='ANONYMOUS LOGON']]"
+  }
 
-    return ($parts -join ' and ')
+  return ($parts -join ' and ')
 }
 
 function Convert-EventToObject {
-    <#
+  <#
     .SYNOPSIS
     Converts a raw Security event 4624 into a structured PSCustomObject.
     #>
-    [CmdletBinding()]
-    param(
-        [Parameter(Mandatory, ValueFromPipeline)]
-        [System.Diagnostics.Eventing.Reader.EventLogRecord]$Event,
+  [CmdletBinding()]
+  param(
+    [Parameter(Mandatory, ValueFromPipeline)]
+    [System.Diagnostics.Eventing.Reader.EventLogRecord]$Event,
 
-        [string]$ComputerName
-    )
+    [string]$ComputerName
+  )
 
-    process {
-        # Map ImpersonationLevel replacement strings to human-readable names
-        $impersonationMap = @{
-            '%%1831' = 'Anonymous'
-            '%%1832' = 'Identify'
-            '%%1833' = 'Impersonation'
-            '%%1834' = 'Delegation'
-        }
-
-        $rawImpersonation = $Event.Properties[20].Value -as [string]
-        $impersonationLevel = if ($impersonationMap.ContainsKey($rawImpersonation)) {
-            $impersonationMap[$rawImpersonation]
-        } else {
-            $rawImpersonation
-        }
-
-        [PSCustomObject]@{
-            PSTypeName         = 'NtlmLogonEvent'
-            Time               = $Event.TimeCreated
-            UserName           = $Event.Properties[5].Value
-            TargetDomainName   = $Event.Properties[6].Value
-            LogonType          = $Event.Properties[8].Value
-            WorkstationName    = $Event.Properties[11].Value
-            LmPackageName      = $Event.Properties[14].Value
-            IPAddress          = $Event.Properties[18].Value
-            TCPPort            = $Event.Properties[19].Value
-            ImpersonationLevel = $impersonationLevel
-            ProcessName        = $Event.Properties[17].Value
-            ComputerName       = $ComputerName
-        }
+  process {
+    # Map ImpersonationLevel replacement strings to human-readable names
+    $impersonationMap = @{
+      '%%1831' = 'Anonymous'
+      '%%1832' = 'Identify'
+      '%%1833' = 'Impersonation'
+      '%%1834' = 'Delegation'
     }
+
+    $rawImpersonation = $Event.Properties[20].Value -as [string]
+    $impersonationLevel = if ($impersonationMap.ContainsKey($rawImpersonation)) {
+      $impersonationMap[$rawImpersonation]
+    }
+    else {
+      $rawImpersonation
+    }
+
+    [PSCustomObject]@{
+      PSTypeName         = 'NtlmLogonEvent'
+      Time               = $Event.TimeCreated
+      UserName           = $Event.Properties[5].Value
+      TargetDomainName   = $Event.Properties[6].Value
+      LogonType          = $Event.Properties[8].Value
+      WorkstationName    = $Event.Properties[11].Value
+      LmPackageName      = $Event.Properties[14].Value
+      IPAddress          = $Event.Properties[18].Value
+      TCPPort            = $Event.Properties[19].Value
+      ImpersonationLevel = $impersonationLevel
+      ProcessName        = $Event.Properties[17].Value
+      ComputerName       = $ComputerName
+    }
+  }
 }
 
 #endregion
@@ -226,133 +227,134 @@ function Convert-EventToObject {
 
 # Build the XPath filter
 $xpathFilter = Build-XPathFilter `
-    -OnlyNTLMv1:$OnlyNTLMv1 `
-    -ExcludeNullSessions:$ExcludeNullSessions `
-    -StartTime $StartTime `
-    -EndTime $EndTime
+  -OnlyNTLMv1:$OnlyNTLMv1 `
+  -ExcludeNullSessions:$ExcludeNullSessions `
+  -StartTime $StartTime `
+  -EndTime $EndTime
 
 $ntlmVersionLabel = if ($OnlyNTLMv1) { 'NTLMv1' } else { 'NTLM (v1, v2, LM)' }
 
 # Output properties for consistent column ordering
 $outputProperties = @(
-    'Time', 'UserName', 'TargetDomainName', 'LogonType', 'WorkstationName',
-    'LmPackageName', 'IPAddress', 'TCPPort', 'ImpersonationLevel',
-    'ProcessName', 'ComputerName'
+  'Time', 'UserName', 'TargetDomainName', 'LogonType', 'WorkstationName',
+  'LmPackageName', 'IPAddress', 'TCPPort', 'ImpersonationLevel',
+  'ProcessName', 'ComputerName'
 )
 
 # Build the remote script block (shared for DCs and single remote host)
 $remoteScriptBlock = {
-    param($Filter, $MaxEvents)
+  param($Filter, $MaxEvents)
 
-    # Re-declare the converter inside the remote session
-    function Convert-RemoteEvent {
-        param(
-            [Parameter(Mandatory)]$Event,
-            [string]$ComputerName
-        )
+  # Re-declare the converter inside the remote session
+  function Convert-RemoteEvent {
+    param(
+      [Parameter(Mandatory)]$Event,
+      [string]$ComputerName
+    )
 
-        $impersonationMap = @{
-            '%%1831' = 'Anonymous'
-            '%%1832' = 'Identify'
-            '%%1833' = 'Impersonation'
-            '%%1834' = 'Delegation'
-        }
-        $rawImpersonation = $Event.Properties[20].Value -as [string]
-        $impersonationLevel = if ($impersonationMap.ContainsKey($rawImpersonation)) {
-            $impersonationMap[$rawImpersonation]
-        } else {
-            $rawImpersonation
-        }
-
-        [PSCustomObject]@{
-            Time               = $Event.TimeCreated
-            UserName           = $Event.Properties[5].Value
-            TargetDomainName   = $Event.Properties[6].Value
-            LogonType          = $Event.Properties[8].Value
-            WorkstationName    = $Event.Properties[11].Value
-            LmPackageName      = $Event.Properties[14].Value
-            IPAddress          = $Event.Properties[18].Value
-            TCPPort            = $Event.Properties[19].Value
-            ImpersonationLevel = $impersonationLevel
-            ProcessName        = $Event.Properties[17].Value
-            ComputerName       = $env:COMPUTERNAME
-        }
+    $impersonationMap = @{
+      '%%1831' = 'Anonymous'
+      '%%1832' = 'Identify'
+      '%%1833' = 'Impersonation'
+      '%%1834' = 'Delegation'
+    }
+    $rawImpersonation = $Event.Properties[20].Value -as [string]
+    $impersonationLevel = if ($impersonationMap.ContainsKey($rawImpersonation)) {
+      $impersonationMap[$rawImpersonation]
+    }
+    else {
+      $rawImpersonation
     }
 
-    Get-WinEvent -LogName Security -MaxEvents $MaxEvents -FilterXPath $Filter -ErrorAction Stop |
-        ForEach-Object { Convert-RemoteEvent -Event $_ -ComputerName $env:COMPUTERNAME }
+    [PSCustomObject]@{
+      Time               = $Event.TimeCreated
+      UserName           = $Event.Properties[5].Value
+      TargetDomainName   = $Event.Properties[6].Value
+      LogonType          = $Event.Properties[8].Value
+      WorkstationName    = $Event.Properties[11].Value
+      LmPackageName      = $Event.Properties[14].Value
+      IPAddress          = $Event.Properties[18].Value
+      TCPPort            = $Event.Properties[19].Value
+      ImpersonationLevel = $impersonationLevel
+      ProcessName        = $Event.Properties[17].Value
+      ComputerName       = $env:COMPUTERNAME
+    }
+  }
+
+  Get-WinEvent -LogName Security -MaxEvents $MaxEvents -FilterXPath $Filter -ErrorAction Stop |
+  ForEach-Object { Convert-RemoteEvent -Event $_ -ComputerName $env:COMPUTERNAME }
 }
 
 # Build Invoke-Command splat (add credential only when provided)
 $invokeParams = @{
-    ScriptBlock  = $remoteScriptBlock
-    ArgumentList = @($xpathFilter, $NumEvents)
-    ErrorAction  = 'Stop'
+  ScriptBlock  = $remoteScriptBlock
+  ArgumentList = @($xpathFilter, $NumEvents)
+  ErrorAction  = 'Stop'
 }
 if ($Credential -ne [System.Management.Automation.PSCredential]::Empty) {
-    $invokeParams['Credential'] = $Credential
+  $invokeParams['Credential'] = $Credential
 }
 
 if ($Target -eq '.') {
-    # --- Local host ---
-    Write-Verbose "Querying Security log for $ntlmVersionLabel events (Event ID 4624) on $env:COMPUTERNAME"
+  # --- Local host ---
+  Write-Verbose "Querying Security log for $ntlmVersionLabel events (Event ID 4624) on $env:COMPUTERNAME"
 
-    try {
-        Get-WinEvent -LogName Security -MaxEvents $NumEvents -FilterXPath $xpathFilter -ErrorAction Stop |
-            Convert-EventToObject -ComputerName $env:COMPUTERNAME
+  try {
+    Get-WinEvent -LogName Security -MaxEvents $NumEvents -FilterXPath $xpathFilter -ErrorAction Stop |
+    Convert-EventToObject -ComputerName $env:COMPUTERNAME
+  }
+  catch [Exception] {
+    if ($_.Exception.Message -match 'No events were found') {
+      Write-Warning "No matching $ntlmVersionLabel logon events found on $env:COMPUTERNAME."
     }
-    catch [Exception] {
-        if ($_.Exception.Message -match 'No events were found') {
-            Write-Warning "No matching $ntlmVersionLabel logon events found on $env:COMPUTERNAME."
-        }
-        else {
-            Write-Error "Failed to query $env:COMPUTERNAME : $_"
-        }
+    else {
+      Write-Error "Failed to query $env:COMPUTERNAME : $_"
     }
+  }
 }
 elseif ($Target -eq 'DCs') {
-    # --- All Domain Controllers ---
-    Write-Verbose "Loading ActiveDirectory module to enumerate domain controllers..."
+  # --- All Domain Controllers ---
+  Write-Verbose "Loading ActiveDirectory module to enumerate domain controllers..."
 
-    try {
-        Import-Module ActiveDirectory -ErrorAction Stop
-    }
-    catch {
-        Write-Error "The ActiveDirectory PowerShell module is required for -Target DCs. Install RSAT or run from a DC. Error: $_"
-        return
-    }
+  try {
+    Import-Module ActiveDirectory -ErrorAction Stop
+  }
+  catch {
+    Write-Error "The ActiveDirectory PowerShell module is required for -Target DCs. Install RSAT or run from a DC. Error: $_"
+    return
+  }
 
-    $domainControllers = Get-ADDomainController -Filter * | Select-Object -ExpandProperty HostName
-    Write-Verbose "Querying Security log for $ntlmVersionLabel events on DCs: $($domainControllers -join ', ')"
+  $domainControllers = Get-ADDomainController -Filter * | Select-Object -ExpandProperty HostName
+  Write-Verbose "Querying Security log for $ntlmVersionLabel events on DCs: $($domainControllers -join ', ')"
 
-    $invokeParams['ComputerName'] = $domainControllers
+  $invokeParams['ComputerName'] = $domainControllers
 
-    try {
-        Invoke-Command @invokeParams |
-            Select-Object $outputProperties
-    }
-    catch {
-        Write-Error "Failed to query domain controllers: $_"
-    }
+  try {
+    Invoke-Command @invokeParams |
+    Select-Object $outputProperties
+  }
+  catch {
+    Write-Error "Failed to query domain controllers: $_"
+  }
 }
 else {
-    # --- Single remote host ---
-    Write-Verbose "Querying Security log for $ntlmVersionLabel events (Event ID 4624) on remote host: $Target"
+  # --- Single remote host ---
+  Write-Verbose "Querying Security log for $ntlmVersionLabel events (Event ID 4624) on remote host: $Target"
 
-    $invokeParams['ComputerName'] = $Target
+  $invokeParams['ComputerName'] = $Target
 
-    try {
-        Invoke-Command @invokeParams |
-            Select-Object $outputProperties
+  try {
+    Invoke-Command @invokeParams |
+    Select-Object $outputProperties
+  }
+  catch [Exception] {
+    if ($_.Exception.Message -match 'No events were found') {
+      Write-Warning "No matching $ntlmVersionLabel logon events found on $Target."
     }
-    catch [Exception] {
-        if ($_.Exception.Message -match 'No events were found') {
-            Write-Warning "No matching $ntlmVersionLabel logon events found on $Target."
-        }
-        else {
-            Write-Error "Failed to query ${Target}: $_"
-        }
+    else {
+      Write-Error "Failed to query ${Target}: $_"
     }
+  }
 }
 
 #endregion
