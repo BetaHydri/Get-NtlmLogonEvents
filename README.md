@@ -33,7 +33,7 @@ This script exposes both `AuthenticationPackageName` and `LogonProcessName` so y
 - Filter by date range (`-StartTime` / `-EndTime`)
 - Exclude null sessions (ANONYMOUS LOGON)
 - Alternate credential support for remote connections
-- Translates impersonation level codes (`%%1833`) to human-readable names
+- Translates impersonation level codes (`%%1831`–`%%1834`) to human-readable names (see [Impersonation Levels Reference](#impersonation-levels-reference))
 - Outputs structured `PSCustomObject` — pipeable to `Export-Csv`, `ConvertTo-Json`, `Format-Table`, etc.
 
 ## Requirements
@@ -346,6 +346,19 @@ ComputerName              : DC01
 | 10 | RemoteInteractive | RDP / Terminal Services |
 | 11 | CachedInteractive | Cached domain credentials |
 
+## Impersonation Levels Reference
+
+Windows stores impersonation levels in the Security event log as replacement strings (`%%18xx`). The script translates these to human-readable names automatically.
+
+| Code | Name | Description |
+|---|---|---|
+| `%%1831` | Anonymous | The server cannot impersonate or identify the client |
+| `%%1832` | Identify | The server can identify the client but cannot impersonate |
+| `%%1833` | Impersonation | The server can impersonate the client's security context on the local system |
+| `%%1834` | Delegation | The server can impersonate the client's security context on remote systems |
+
+> **Note:** Failed logon events (4625) do not include an impersonation level — the field will be empty.
+
 ## NTSTATUS Codes Reference
 
 Common failure status codes seen in Event ID 4625:
@@ -381,7 +394,7 @@ Common failure status codes seen in Event ID 4625:
 
 ## Testing
 
-The project includes a comprehensive Pester test suite with 87 tests covering:
+The project includes a comprehensive Pester test suite with 88 tests covering:
 
 - **XPath filter generation** — default behavior, NTLMv1 filtering, null session exclusion, time range filters, failed logon inclusion, structural validation
 - **Event-to-object conversion** — field mapping for 4624 and 4625 events, impersonation level translation, Negotiate→NTLM fallback detection, pipeline input, output object shape
