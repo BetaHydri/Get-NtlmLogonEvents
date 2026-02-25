@@ -7,11 +7,13 @@
 [![GitHub issues](https://img.shields.io/github/issues/BetaHydri/Get-NtlmLogonEvents)](https://github.com/BetaHydri/Get-NtlmLogonEvents/issues)
 [![GitHub last commit](https://img.shields.io/github/last-commit/BetaHydri/Get-NtlmLogonEvents)](https://github.com/BetaHydri/Get-NtlmLogonEvents/commits/main)
 
-A PowerShell script to query Windows Security event logs for NTLM authentication events (Event ID 4624 for successful logons, and optionally Event ID 4625 for failed logons). Designed for security auditing and identifying legacy NTLMv1 usage across your environment.
+A PowerShell script to query Windows Security event logs for NTLM authentication events (Event ID 4624 for successful logons, and optionally Event ID 4625 for failed logons). It can also correlate NTLM logons with Event ID 4672 to identify privileged sessions using NTLM. Designed for security auditing and identifying legacy NTLMv1 usage across your environment.
 
 ## Why This Matters
 
 NTLM (including NTLMv1, NTLMv2, and LM) is a legacy authentication protocol that is vulnerable to relay, brute-force, and pass-the-hash attacks. Microsoft strongly recommends Kerberos authentication instead. This script helps you **find which users, workstations, and applications are still using NTLM** so you can remediate them before enforcing stronger authentication policies.
+
+Privileged accounts using NTLM are especially dangerous — they are prime targets for relay and pass-the-hash attacks. The `-CorrelatePrivileged` switch cross-references Event ID 4672 (special privileges assigned to new logon) to flag these high-risk sessions, so you can prioritize them for Kerberos migration.
 
 ### Direct NTLM vs. Negotiate Fallback
 
