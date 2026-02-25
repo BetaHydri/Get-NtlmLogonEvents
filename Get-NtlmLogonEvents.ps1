@@ -518,7 +518,7 @@ $remoteScriptBlock = {
   }
 
   $events = @(Get-WinEvent -LogName Security -MaxEvents $MaxEvents -FilterXPath $Filter -ErrorAction Stop |
-  ForEach-Object { Convert-RemoteEvent -Event $_ -ComputerName $env:COMPUTERNAME })
+    ForEach-Object { Convert-RemoteEvent -Event $_ -ComputerName $env:COMPUTERNAME })
 
   if ($DoCorrelatePrivileged -and $events.Count -gt 0) {
     # Correlate with Event ID 4672 (special privileges assigned to new logon)
@@ -586,7 +586,7 @@ if ($Target -eq '.') {
 
   try {
     $events = @(Get-WinEvent -LogName Security -MaxEvents $NumEvents -FilterXPath $xpathFilter -ErrorAction Stop |
-    Convert-EventToObject -ComputerName $env:COMPUTERNAME)
+      Convert-EventToObject -ComputerName $env:COMPUTERNAME)
 
     if ($CorrelatePrivileged -and $events.Count -gt 0) {
       Write-Verbose 'Correlating with Event ID 4672 (special privileges assigned to new logon)...'
