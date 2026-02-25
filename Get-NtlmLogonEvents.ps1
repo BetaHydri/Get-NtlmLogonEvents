@@ -227,6 +227,8 @@ function Convert-EventToObject {
     if ($isFailed) {
       # Event ID 4625 property indices (Status/FailureReason/SubStatus at [7]-[9] shift everything)
       $logonType = $Event.Properties[10].Value
+      $logonProcessName = $Event.Properties[11].Value
+      $authPackageName = $Event.Properties[12].Value
       $workstationName = $Event.Properties[13].Value
       $lmPackageName = $Event.Properties[15].Value
       $processName = $Event.Properties[18].Value
@@ -240,6 +242,8 @@ function Convert-EventToObject {
     else {
       # Event ID 4624 property indices
       $logonType = $Event.Properties[8].Value
+      $logonProcessName = $Event.Properties[9].Value
+      $authPackageName = $Event.Properties[10].Value
       $workstationName = $Event.Properties[11].Value
       $lmPackageName = $Event.Properties[14].Value
       $processName = $Event.Properties[17].Value
@@ -259,22 +263,24 @@ function Convert-EventToObject {
     }
 
     [PSCustomObject]@{
-      PSTypeName         = 'NtlmLogonEvent'
-      EventId            = $eventId
-      Time               = $Event.TimeCreated
-      UserName           = $Event.Properties[5].Value
-      TargetDomainName   = $Event.Properties[6].Value
-      LogonType          = $logonType
-      WorkstationName    = $workstationName
-      LmPackageName      = $lmPackageName
-      IPAddress          = $ipAddress
-      TCPPort            = $tcpPort
-      ImpersonationLevel = $impersonationLevel
-      ProcessName        = $processName
-      Status             = $status
-      FailureReason      = $failureReason
-      SubStatus          = $subStatus
-      ComputerName       = $ComputerName
+      PSTypeName                = 'NtlmLogonEvent'
+      EventId                   = $eventId
+      Time                      = $Event.TimeCreated
+      UserName                  = $Event.Properties[5].Value
+      TargetDomainName          = $Event.Properties[6].Value
+      LogonType                 = $logonType
+      LogonProcessName          = $logonProcessName
+      AuthenticationPackageName = $authPackageName
+      WorkstationName           = $workstationName
+      LmPackageName             = $lmPackageName
+      IPAddress                 = $ipAddress
+      TCPPort                   = $tcpPort
+      ImpersonationLevel        = $impersonationLevel
+      ProcessName               = $processName
+      Status                    = $status
+      FailureReason             = $failureReason
+      SubStatus                 = $subStatus
+      ComputerName              = $ComputerName
     }
   }
 }
@@ -301,7 +307,8 @@ $ntlmVersionLabel = if ($OnlyNTLMv1) { 'NTLMv1' } else { 'NTLM (v1, v2, LM)' }
 
 # Output properties for consistent column ordering
 $outputProperties = @(
-  'EventId', 'Time', 'UserName', 'TargetDomainName', 'LogonType', 'WorkstationName',
+  'EventId', 'Time', 'UserName', 'TargetDomainName', 'LogonType',
+  'LogonProcessName', 'AuthenticationPackageName', 'WorkstationName',
   'LmPackageName', 'IPAddress', 'TCPPort', 'ImpersonationLevel',
   'ProcessName', 'Status', 'FailureReason', 'SubStatus', 'ComputerName'
 )
@@ -329,6 +336,8 @@ $remoteScriptBlock = {
 
     if ($isFailed) {
       $logonType = $Event.Properties[10].Value
+      $logonProcessName = $Event.Properties[11].Value
+      $authPackageName = $Event.Properties[12].Value
       $workstationName = $Event.Properties[13].Value
       $lmPackageName = $Event.Properties[15].Value
       $processName = $Event.Properties[18].Value
@@ -341,6 +350,8 @@ $remoteScriptBlock = {
     }
     else {
       $logonType = $Event.Properties[8].Value
+      $logonProcessName = $Event.Properties[9].Value
+      $authPackageName = $Event.Properties[10].Value
       $workstationName = $Event.Properties[11].Value
       $lmPackageName = $Event.Properties[14].Value
       $processName = $Event.Properties[17].Value
@@ -360,21 +371,23 @@ $remoteScriptBlock = {
     }
 
     [PSCustomObject]@{
-      EventId            = $eventId
-      Time               = $Event.TimeCreated
-      UserName           = $Event.Properties[5].Value
-      TargetDomainName   = $Event.Properties[6].Value
-      LogonType          = $logonType
-      WorkstationName    = $workstationName
-      LmPackageName      = $lmPackageName
-      IPAddress          = $ipAddress
-      TCPPort            = $tcpPort
-      ImpersonationLevel = $impersonationLevel
-      ProcessName        = $processName
-      Status             = $status
-      FailureReason      = $failureReason
-      SubStatus          = $subStatus
-      ComputerName       = $env:COMPUTERNAME
+      EventId                   = $eventId
+      Time                      = $Event.TimeCreated
+      UserName                  = $Event.Properties[5].Value
+      TargetDomainName          = $Event.Properties[6].Value
+      LogonType                 = $logonType
+      LogonProcessName          = $logonProcessName
+      AuthenticationPackageName = $authPackageName
+      WorkstationName           = $workstationName
+      LmPackageName             = $lmPackageName
+      IPAddress                 = $ipAddress
+      TCPPort                   = $tcpPort
+      ImpersonationLevel        = $impersonationLevel
+      ProcessName               = $processName
+      Status                    = $status
+      FailureReason             = $failureReason
+      SubStatus                 = $subStatus
+      ComputerName              = $env:COMPUTERNAME
     }
   }
 

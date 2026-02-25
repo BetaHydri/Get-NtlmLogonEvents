@@ -320,7 +320,8 @@ Describe 'Convert-EventToObject' {
 
             $expectedProps = @(
                 'EventId', 'Time', 'UserName', 'TargetDomainName', 'LogonType',
-                'WorkstationName', 'LmPackageName', 'IPAddress', 'TCPPort',
+                'LogonProcessName', 'AuthenticationPackageName', 'WorkstationName',
+                'LmPackageName', 'IPAddress', 'TCPPort',
                 'ImpersonationLevel', 'ProcessName', 'Status', 'FailureReason',
                 'SubStatus', 'ComputerName'
             )
@@ -349,6 +350,18 @@ Describe 'Convert-EventToObject' {
             $result.FailureReason | Should -BeNullOrEmpty
             $result.SubStatus | Should -BeNullOrEmpty
         }
+
+        It 'Should map LogonProcessName from Properties[9] for 4624' {
+            $event = New-MockEvent
+            $result = Convert-EventToObject -Event $event -ComputerName 'SRV01'
+            $result.LogonProcessName | Should -Be 'NtLmSsp'
+        }
+
+        It 'Should map AuthenticationPackageName from Properties[10] for 4624' {
+            $event = New-MockEvent
+            $result = Convert-EventToObject -Event $event -ComputerName 'SRV01'
+            $result.AuthenticationPackageName | Should -Be 'NTLM'
+        }
     }
 
     Context 'Pipeline input' {
@@ -364,6 +377,49 @@ Describe 'Convert-EventToObject' {
             $results[0].UserName | Should -Be 'user1'
             $results[1].UserName | Should -Be 'user2'
             $results[2].UserName | Should -Be 'user3'
+        }
+    }
+
+    Context 'Negotiate to NTLM fallback detection' {
+        It 'Should show AuthenticationPackageName=Negotiate when Negotiate falls back to NTLM' {
+            # Simulate a Negotiate→NTLM fallback event (Negotiate tried Kerberos, fell back)
+            $props = @(
+                [PSCustomObject]@{ Value = 'S-1-0-0' }          # [0] SubjectUserSid
+                [PSCustomObject]@{ Value = '-' }                  # [1] SubjectUserName
+                [PSCustomObject]@{ Value = '-' }                  # [2] SubjectDomainName
+                [PSCustomObject]@{ Value = '0x0' }                # [3] SubjectLogonId
+                [PSCustomObject]@{ Value = 'S-1-5-21-123' }      # [4] TargetUserSid
+                [PSCustomObject]@{ Value = 'jsmith' }             # [5] TargetUserName
+                [PSCustomObject]@{ Value = 'CONTOSO' }            # [6] TargetDomainName
+                [PSCustomObject]@{ Value = '0x12345' }            # [7] TargetLogonId
+                [PSCustomObject]@{ Value = 3 }                    # [8] LogonType
+                [PSCustomObject]@{ Value = 'Negotiate' }          # [9] LogonProcessName
+                [PSCustomObject]@{ Value = 'Negotiate' }          # [10] AuthenticationPackageName
+                [PSCustomObject]@{ Value = 'WKS01' }             # [11] WorkstationName
+                [PSCustomObject]@{ Value = '{00000000-0000-0000-0000-000000000000}' } # [12] LogonGuid
+                [PSCustomObject]@{ Value = '-' }                  # [13] TransmittedServices
+                [PSCustomObject]@{ Value = 'NTLM V2' }           # [14] LmPackageName
+                [PSCustomObject]@{ Value = 128 }                  # [15] KeyLength
+                [PSCustomObject]@{ Value = '0x0' }                # [16] ProcessId
+                [PSCustomObject]@{ Value = '-' }                  # [17] ProcessName
+                [PSCustomObject]@{ Value = '10.0.0.5' }           # [18] IpAddress
+                [PSCustomObject]@{ Value = 49832 }                # [19] IpPort
+                [PSCustomObject]@{ Value = '%%1833' }             # [20] ImpersonationLevel
+            )
+            $event = [PSCustomObject]@{ Id = 4624; TimeCreated = (Get-Date); Properties = $props }
+            $event.PSObject.TypeNames.Insert(0, 'System.Diagnostics.Eventing.Reader.EventLogRecord')
+
+            $result = Convert-EventToObject -Event $event -ComputerName 'SRV01'
+            $result.AuthenticationPackageName | Should -Be 'Negotiate'
+            $result.LogonProcessName | Should -Be 'Negotiate'
+            $result.LmPackageName | Should -Be 'NTLM V2'
+        }
+
+        It 'Should show AuthenticationPackageName=NTLM for direct NTLM usage' {
+            $event = New-MockEvent
+            $result = Convert-EventToObject -Event $event -ComputerName 'SRV01'
+            $result.AuthenticationPackageName | Should -Be 'NTLM'
+            $result.LogonProcessName | Should -Be 'NtLmSsp'
         }
     }
 }
@@ -500,6 +556,18 @@ Describe 'Convert-EventToObject (Event ID 4625 - Failed Logon)' {
             $event = New-MockFailedEvent
             $result = Convert-EventToObject -Event $event -ComputerName 'SRV01'
             $result.ImpersonationLevel | Should -BeNullOrEmpty
+        }
+
+        It 'Should map LogonProcessName from Properties[11] for 4625' {
+            $event = New-MockFailedEvent
+            $result = Convert-EventToObject -Event $event -ComputerName 'SRV01'
+            $result.LogonProcessName | Should -Be 'NtLmSsp'
+        }
+
+        It 'Should map AuthenticationPackageName from Properties[12] for 4625' {
+            $event = New-MockFailedEvent
+            $result = Convert-EventToObject -Event $event -ComputerName 'SRV01'
+            $result.AuthenticationPackageName | Should -Be 'NTLM'
         }
     }
 
