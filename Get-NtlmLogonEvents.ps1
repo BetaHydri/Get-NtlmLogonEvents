@@ -226,11 +226,17 @@ function Convert-EventToObject {
 #region Main Logic
 
 # Build the XPath filter
-$xpathFilter = Build-XPathFilter `
-  -OnlyNTLMv1:$OnlyNTLMv1 `
-  -ExcludeNullSessions:$ExcludeNullSessions `
-  -StartTime $StartTime `
-  -EndTime $EndTime
+$filterParams = @{
+  OnlyNTLMv1         = $OnlyNTLMv1
+  ExcludeNullSessions = $ExcludeNullSessions
+}
+if ($PSBoundParameters.ContainsKey('StartTime')) {
+  $filterParams['StartTime'] = $StartTime
+}
+if ($PSBoundParameters.ContainsKey('EndTime')) {
+  $filterParams['EndTime'] = $EndTime
+}
+$xpathFilter = Build-XPathFilter @filterParams
 
 $ntlmVersionLabel = if ($OnlyNTLMv1) { 'NTLMv1' } else { 'NTLM (v1, v2, LM)' }
 

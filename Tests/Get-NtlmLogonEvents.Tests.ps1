@@ -370,7 +370,9 @@ Describe 'Get-NtlmLogonEvents.ps1 Script Parameters' {
         }
 
         It 'Should support CmdletBinding (Verbose, etc.)' {
-            $command.CmdletBinding | Should -BeTrue
+            $command.ScriptBlock.Attributes |
+                Where-Object { $_ -is [System.Management.Automation.CmdletBindingAttribute] } |
+                Should -Not -BeNullOrEmpty
         }
     }
 
@@ -393,13 +395,14 @@ Describe 'Get-NtlmLogonEvents.ps1 Script Execution (mocked)' {
 
     BeforeAll {
         $scriptPath = Join-Path (Split-Path $PSScriptRoot -Parent) 'Get-NtlmLogonEvents.ps1'
+        Import-Module Microsoft.PowerShell.Diagnostics -ErrorAction SilentlyContinue
     }
 
     Context 'Local host - no events found' {
         It 'Should emit a warning when no events are found' {
             Mock Get-WinEvent {
                 throw [System.Exception]::new('No events were found that match the specified selection criteria.')
-            } -ModuleName Microsoft.PowerShell.Diagnostics
+            }
 
             $result = & $scriptPath 3>&1
             # The warning stream should contain our message
@@ -441,7 +444,7 @@ Describe 'Get-NtlmLogonEvents.ps1 Script Execution (mocked)' {
             }
             $mockEvent.PSObject.TypeNames.Insert(0, 'System.Diagnostics.Eventing.Reader.EventLogRecord')
 
-            Mock Get-WinEvent { return $mockEvent } -ModuleName Microsoft.PowerShell.Diagnostics
+            Mock Get-WinEvent { return $mockEvent }
 
             $result = & $scriptPath -NumEvents 1
             $result | Should -Not -BeNullOrEmpty
