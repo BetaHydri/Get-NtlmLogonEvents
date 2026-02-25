@@ -7,7 +7,7 @@
 [![GitHub issues](https://img.shields.io/github/issues/BetaHydri/Get-NtlmLogonEvents)](https://github.com/BetaHydri/Get-NtlmLogonEvents/issues)
 [![GitHub last commit](https://img.shields.io/github/last-commit/BetaHydri/Get-NtlmLogonEvents)](https://github.com/BetaHydri/Get-NtlmLogonEvents/commits/main)
 
-A PowerShell script to query Windows Security event logs for NTLM authentication events (Event ID 4624). Designed for security auditing and identifying legacy NTLMv1 usage across your environment.
+A PowerShell script to query Windows Security event logs for NTLM authentication events (Event ID 4624 for successful logons, and optionally Event ID 4625 for failed logons). Designed for security auditing and identifying legacy NTLMv1 usage across your environment.
 
 ## Why This Matters
 
@@ -16,6 +16,7 @@ NTLM (including NTLMv1, NTLMv2, and LM) is a legacy authentication protocol that
 ## Features
 
 - Query NTLMv1-only or all NTLM (v1, v2, LM) logon events
+- **Include failed NTLM logon attempts** (Event ID 4625) for brute-force and relay attack detection
 - Target localhost, a specific remote server, or all domain controllers
 - Filter by date range (`-StartTime` / `-EndTime`)
 - Exclude null sessions (ANONYMOUS LOGON)
@@ -49,6 +50,7 @@ cd Get-NtlmLogonEvents
 | `-Target` | String | `.` (localhost) | Target: `.` for localhost, `DCs` for all domain controllers, or a hostname |
 | `-OnlyNTLMv1` | Switch | Off | Return only NTLMv1 events (default: all NTLM versions) |
 | `-ExcludeNullSessions` | Switch | Off | Filter out ANONYMOUS LOGON (null session) events |
+| `-IncludeFailedLogons` | Switch | Off | Also query failed logon attempts (Event ID 4625) |
 | `-StartTime` | DateTime | — | Only return events after this date/time |
 | `-EndTime` | DateTime | — | Only return events before this date/time |
 | `-Credential` | PSCredential | — | Alternate credentials for remote connections |
@@ -140,9 +142,25 @@ cd Get-NtlmLogonEvents
 .\Get-NtlmLogonEvents.ps1 -Target DCs -Verbose
 ```
 
+### Include failed NTLM logon attempts
+
+```powershell
+.\Get-NtlmLogonEvents.ps1 -IncludeFailedLogons
+```
+
+### Failed NTLMv1 attempts only
+
+```powershell
+.\Get-NtlmLogonEvents.ps1 -IncludeFailedLogons -OnlyNTLMv1 |
+    Where-Object EventId -eq 4625
+```
+
 ## Sample Output
 
+### Successful Logon (Event ID 4624)
+
 ```
+EventId            : 4624
 Time               : 2/25/2026 10:23:45 AM
 UserName           : jsmith
 TargetDomainName   : CONTOSO
@@ -153,6 +171,29 @@ IPAddress          : 192.168.1.50
 TCPPort            : 49832
 ImpersonationLevel : Impersonation
 ProcessName        : -
+Status             :
+FailureReason      :
+SubStatus          :
+ComputerName       : DC01
+```
+
+### Failed Logon (Event ID 4625)
+
+```
+EventId            : 4625
+Time               : 2/25/2026 10:24:12 AM
+UserName           : admin
+TargetDomainName   : CONTOSO
+LogonType          : 3
+WorkstationName    : ATTACKER-PC
+LmPackageName      : NTLM V1
+IPAddress          : 10.0.0.99
+TCPPort            : 55555
+ImpersonationLevel :
+ProcessName        : -
+Status             : 0xC000006D
+FailureReason      : %%2313
+SubStatus          : 0xC0000064
 ComputerName       : DC01
 ```
 
@@ -160,16 +201,20 @@ ComputerName       : DC01
 
 | Field | Description |
 |---|---|
+| `EventId` | Event ID (4624 = success, 4625 = failure) |
 | `Time` | Timestamp of the logon event |
-| `UserName` | Account name that logged on |
+| `UserName` | Account name that logged on (or attempted to) |
 | `TargetDomainName` | Domain of the target account |
 | `LogonType` | Logon type (e.g., 3 = Network, 10 = RemoteInteractive) |
 | `WorkstationName` | Name of the source workstation |
 | `LmPackageName` | NTLM version used (`NTLM V1`, `NTLM V2`, etc.) |
 | `IPAddress` | Source IP address |
 | `TCPPort` | Source TCP port |
-| `ImpersonationLevel` | Impersonation level (Anonymous, Identify, Impersonation, Delegation) |
+| `ImpersonationLevel` | Impersonation level (4624 only: Anonymous, Identify, Impersonation, Delegation) |
 | `ProcessName` | Process that initiated the logon |
+| `Status` | Top-level NTSTATUS failure code (4625 only, e.g., `0xC000006D`) |
+| `FailureReason` | Failure reason replacement string (4625 only, e.g., `%%2313`) |
+| `SubStatus` | Detailed NTSTATUS failure code (4625 only, e.g., `0xC0000064`) |
 | `ComputerName` | Computer where the event was logged |
 
 ## Logon Types Reference
@@ -189,8 +234,8 @@ ComputerName       : DC01
 ## Troubleshooting
 
 **"No events were found"**
-- Ensure the Security log has Event ID 4624 events with NTLM authentication
-- Verify audit policy: `auditpol /get /subcategory:"Logon"` should show Success auditing enabled
+- Ensure the Security log has Event ID 4624 (and/or 4625 with `-IncludeFailedLogons`) events with NTLM authentication
+- Verify audit policy: `auditpol /get /subcategory:"Logon"` should show Success (and Failure) auditing enabled
 
 **"Access denied" or permission errors**
 - Run PowerShell as Administrator
@@ -223,6 +268,7 @@ Invoke-Pester -Path .\Tests\Get-NtlmLogonEvents.Tests.ps1 -Output Detailed
 
 | Version | Date | Changes |
 |---|---|---|
+| 3.0 | 2026-02-25 | Added `-IncludeFailedLogons` switch for Event ID 4625 (failed logon attempts); EventId/Status/FailureReason/SubStatus output fields; separate property mapping for 4624 vs 4625 layouts |
 | 2.1 | 2026-02-25 | Fixed parameter splatting for optional DateTime parameters; relaxed pipeline type constraint for testability; added comprehensive Pester test suite (60 tests) |
 | 2.0 | 2026-02-25 | Major rewrite: structured output objects, XPath filtering, date range support, credential support, impersonation level translation |
 

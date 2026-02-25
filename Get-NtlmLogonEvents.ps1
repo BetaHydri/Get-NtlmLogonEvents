@@ -6,7 +6,8 @@
 
     .DESCRIPTION
     This script queries the Windows Security event log for NTLM authentication events
-    (Event ID 4624). It supports filtering by NTLM version, date range, and null sessions.
+    (Event ID 4624 for successful logons, and optionally Event ID 4625 for failed logons).
+    It supports filtering by NTLM version, date range, and null sessions.
 
     Targets can be the local machine, a remote server (via WinRM), or all domain controllers
     (requires the ActiveDirectory PowerShell module).
@@ -65,6 +66,16 @@
 
     Gets the last 30 NTLMv1-only logon events excluding null sessions.
 
+    .EXAMPLE
+    .\Get-NtlmLogonEvents.ps1 -IncludeFailedLogons
+
+    Gets the last 30 NTLM logon events including failed logon attempts (Event ID 4625).
+
+    .EXAMPLE
+    .\Get-NtlmLogonEvents.ps1 -IncludeFailedLogons -OnlyNTLMv1 | Where-Object EventId -eq 4625
+
+    Gets only the failed NTLMv1 logon attempts.
+
     .PARAMETER NumEvents
     Maximum number of events to return per host. Default is 30.
 
@@ -87,6 +98,11 @@
     .PARAMETER EndTime
     Optional end date/time to filter events. Only events before this time are returned.
 
+    .PARAMETER IncludeFailedLogons
+    When specified, also queries for failed NTLM logon attempts (Event ID 4625).
+    Failed logon events include additional fields: EventId, Status, FailureReason, and SubStatus.
+    By default, only successful logons (Event ID 4624) are returned.
+
     .PARAMETER Credential
     Optional PSCredential object for authenticating to remote computers.
 
@@ -100,7 +116,7 @@
 
     .NOTES
     Author:  Jan Tiedemann
-    Version: 2.1
+    Version: 3.0
     Requires: PowerShell 5.1+, elevated privileges to read Security log.
     For remote targets: WinRM must be enabled (winrm quickconfig).
     For DCs target: ActiveDirectory PowerShell module required.
@@ -118,6 +134,8 @@ param(
 
   [switch]$OnlyNTLMv1,
 
+  [switch]$IncludeFailedLogons,
+
   [datetime]$StartTime,
 
   [datetime]$EndTime,
@@ -132,18 +150,24 @@ param(
 function Build-XPathFilter {
   <#
     .SYNOPSIS
-    Builds the XPath filter string for querying Event ID 4624 with NTLM constraints.
+    Builds the XPath filter string for querying Event ID 4624 (and optionally 4625) with NTLM constraints.
     #>
   [CmdletBinding()]
   param(
     [switch]$OnlyNTLMv1,
     [switch]$ExcludeNullSessions,
+    [switch]$IncludeFailedLogons,
     [datetime]$StartTime,
     [datetime]$EndTime
   )
 
-  # Base: Event ID 4624
-  $systemFilters = @('EventID=4624')
+  # Base: Event ID filter
+  if ($IncludeFailedLogons) {
+    $systemFilters = @('(EventID=4624 or EventID=4625)')
+  }
+  else {
+    $systemFilters = @('EventID=4624')
+  }
 
   # Time range filters
   if ($StartTime) {
@@ -177,7 +201,7 @@ function Build-XPathFilter {
 function Convert-EventToObject {
   <#
     .SYNOPSIS
-    Converts a raw Security event 4624 into a structured PSCustomObject.
+    Converts a raw Security event 4624 or 4625 into a structured PSCustomObject.
     #>
   [CmdletBinding()]
   param(
@@ -196,26 +220,60 @@ function Convert-EventToObject {
       '%%1834' = 'Delegation'
     }
 
-    $rawImpersonation = $Event.Properties[20].Value -as [string]
-    $impersonationLevel = if ($impersonationMap.ContainsKey($rawImpersonation)) {
-      $impersonationMap[$rawImpersonation]
+    # Detect event type — 4624 and 4625 have different property layouts
+    $eventId = $Event.Id
+    $isFailed = ($eventId -eq 4625)
+
+    if ($isFailed) {
+      # Event ID 4625 property indices (Status/FailureReason/SubStatus at [7]-[9] shift everything)
+      $logonType          = $Event.Properties[10].Value
+      $workstationName    = $Event.Properties[13].Value
+      $lmPackageName      = $Event.Properties[15].Value
+      $processName        = $Event.Properties[18].Value
+      $ipAddress          = $Event.Properties[19].Value
+      $tcpPort            = $Event.Properties[20].Value
+      $impersonationLevel = $null  # 4625 does not have ImpersonationLevel
+      $status             = $Event.Properties[7].Value
+      $failureReason      = $Event.Properties[8].Value
+      $subStatus          = $Event.Properties[9].Value
     }
     else {
-      $rawImpersonation
+      # Event ID 4624 property indices
+      $logonType       = $Event.Properties[8].Value
+      $workstationName = $Event.Properties[11].Value
+      $lmPackageName   = $Event.Properties[14].Value
+      $processName     = $Event.Properties[17].Value
+      $ipAddress       = $Event.Properties[18].Value
+      $tcpPort         = $Event.Properties[19].Value
+      $status          = $null
+      $failureReason   = $null
+      $subStatus       = $null
+
+      $rawImpersonation = $Event.Properties[20].Value -as [string]
+      $impersonationLevel = if ($impersonationMap.ContainsKey($rawImpersonation)) {
+        $impersonationMap[$rawImpersonation]
+      }
+      else {
+        $rawImpersonation
+      }
     }
 
     [PSCustomObject]@{
       PSTypeName         = 'NtlmLogonEvent'
+      EventId            = $eventId
       Time               = $Event.TimeCreated
       UserName           = $Event.Properties[5].Value
       TargetDomainName   = $Event.Properties[6].Value
-      LogonType          = $Event.Properties[8].Value
-      WorkstationName    = $Event.Properties[11].Value
-      LmPackageName      = $Event.Properties[14].Value
-      IPAddress          = $Event.Properties[18].Value
-      TCPPort            = $Event.Properties[19].Value
+      LogonType          = $logonType
+      WorkstationName    = $workstationName
+      LmPackageName      = $lmPackageName
+      IPAddress          = $ipAddress
+      TCPPort            = $tcpPort
       ImpersonationLevel = $impersonationLevel
-      ProcessName        = $Event.Properties[17].Value
+      ProcessName        = $processName
+      Status             = $status
+      FailureReason      = $failureReason
+      SubStatus          = $subStatus
       ComputerName       = $ComputerName
     }
   }
@@ -229,6 +287,7 @@ function Convert-EventToObject {
 $filterParams = @{
   OnlyNTLMv1          = $OnlyNTLMv1
   ExcludeNullSessions = $ExcludeNullSessions
+  IncludeFailedLogons = $IncludeFailedLogons
 }
 if ($PSBoundParameters.ContainsKey('StartTime')) {
   $filterParams['StartTime'] = $StartTime
@@ -242,9 +301,9 @@ $ntlmVersionLabel = if ($OnlyNTLMv1) { 'NTLMv1' } else { 'NTLM (v1, v2, LM)' }
 
 # Output properties for consistent column ordering
 $outputProperties = @(
-  'Time', 'UserName', 'TargetDomainName', 'LogonType', 'WorkstationName',
+  'EventId', 'Time', 'UserName', 'TargetDomainName', 'LogonType', 'WorkstationName',
   'LmPackageName', 'IPAddress', 'TCPPort', 'ImpersonationLevel',
-  'ProcessName', 'ComputerName'
+  'ProcessName', 'Status', 'FailureReason', 'SubStatus', 'ComputerName'
 )
 
 # Build the remote script block (shared for DCs and single remote host)
@@ -264,25 +323,57 @@ $remoteScriptBlock = {
       '%%1833' = 'Impersonation'
       '%%1834' = 'Delegation'
     }
-    $rawImpersonation = $Event.Properties[20].Value -as [string]
-    $impersonationLevel = if ($impersonationMap.ContainsKey($rawImpersonation)) {
-      $impersonationMap[$rawImpersonation]
+
+    $eventId = $Event.Id
+    $isFailed = ($eventId -eq 4625)
+
+    if ($isFailed) {
+      $logonType          = $Event.Properties[10].Value
+      $workstationName    = $Event.Properties[13].Value
+      $lmPackageName      = $Event.Properties[15].Value
+      $processName        = $Event.Properties[18].Value
+      $ipAddress          = $Event.Properties[19].Value
+      $tcpPort            = $Event.Properties[20].Value
+      $impersonationLevel = $null
+      $status             = $Event.Properties[7].Value
+      $failureReason      = $Event.Properties[8].Value
+      $subStatus          = $Event.Properties[9].Value
     }
     else {
-      $rawImpersonation
+      $logonType       = $Event.Properties[8].Value
+      $workstationName = $Event.Properties[11].Value
+      $lmPackageName   = $Event.Properties[14].Value
+      $processName     = $Event.Properties[17].Value
+      $ipAddress       = $Event.Properties[18].Value
+      $tcpPort         = $Event.Properties[19].Value
+      $status          = $null
+      $failureReason   = $null
+      $subStatus       = $null
+
+      $rawImpersonation = $Event.Properties[20].Value -as [string]
+      $impersonationLevel = if ($impersonationMap.ContainsKey($rawImpersonation)) {
+        $impersonationMap[$rawImpersonation]
+      }
+      else {
+        $rawImpersonation
+      }
     }
 
     [PSCustomObject]@{
+      EventId            = $eventId
       Time               = $Event.TimeCreated
       UserName           = $Event.Properties[5].Value
       TargetDomainName   = $Event.Properties[6].Value
-      LogonType          = $Event.Properties[8].Value
-      WorkstationName    = $Event.Properties[11].Value
-      LmPackageName      = $Event.Properties[14].Value
-      IPAddress          = $Event.Properties[18].Value
-      TCPPort            = $Event.Properties[19].Value
+      LogonType          = $logonType
+      WorkstationName    = $workstationName
+      LmPackageName      = $lmPackageName
+      IPAddress          = $ipAddress
+      TCPPort            = $tcpPort
       ImpersonationLevel = $impersonationLevel
-      ProcessName        = $Event.Properties[17].Value
+      ProcessName        = $processName
+      Status             = $status
+      FailureReason      = $failureReason
+      SubStatus          = $subStatus
       ComputerName       = $env:COMPUTERNAME
     }
   }
@@ -303,7 +394,8 @@ if ($Credential -ne [System.Management.Automation.PSCredential]::Empty) {
 
 if ($Target -eq '.') {
   # --- Local host ---
-  Write-Verbose "Querying Security log for $ntlmVersionLabel events (Event ID 4624) on $env:COMPUTERNAME"
+  $eventIdLabel = if ($IncludeFailedLogons) { 'Event ID 4624+4625' } else { 'Event ID 4624' }
+  Write-Verbose "Querying Security log for $ntlmVersionLabel events ($eventIdLabel) on $env:COMPUTERNAME"
 
   try {
     Get-WinEvent -LogName Security -MaxEvents $NumEvents -FilterXPath $xpathFilter -ErrorAction Stop |
@@ -345,7 +437,8 @@ elseif ($Target -eq 'DCs') {
 }
 else {
   # --- Single remote host ---
-  Write-Verbose "Querying Security log for $ntlmVersionLabel events (Event ID 4624) on remote host: $Target"
+  $eventIdLabel = if ($IncludeFailedLogons) { 'Event ID 4624+4625' } else { 'Event ID 4624' }
+  Write-Verbose "Querying Security log for $ntlmVersionLabel events ($eventIdLabel) on remote host: $Target"
 
   $invokeParams['ComputerName'] = $Target
 
@@ -366,7 +459,7 @@ else {
 #endregion
 
 ###############################################################################
-# Reference: Properties (EventData) fields of Event ID 4624
+# Reference: Properties (EventData) fields of Event ID 4624 (Successful Logon)
 ###############################################################################
 # Index  Property                   Example Value
 # -----  -------------------------  -------------------------------------------
@@ -391,3 +484,30 @@ else {
 # [18]   IpAddress                  192.168.1.100
 # [19]   IpPort                     58560
 # [20]   ImpersonationLevel         %%1833  (Anonymous/Identify/Impersonation/Delegation)
+
+###############################################################################
+# Reference: Properties (EventData) fields of Event ID 4625 (Failed Logon)
+###############################################################################
+# Index  Property                   Example Value
+# -----  -------------------------  -------------------------------------------
+# [0]    SubjectUserSid             S-1-0-0
+# [1]    SubjectUserName            -
+# [2]    SubjectDomainName          -
+# [3]    SubjectLogonId             0x0
+# [4]    TargetUserSid              S-1-0-0
+# [5]    TargetUserName             jsmith
+# [6]    TargetDomainName           CONTOSO
+# [7]    Status                     0xC000006D  (top-level NTSTATUS code)
+# [8]    FailureReason              %%2313      (reason string replacement)
+# [9]    SubStatus                  0xC0000064  (detailed NTSTATUS code)
+# [10]   LogonType                  3
+# [11]   LogonProcessName           NtLmSsp
+# [12]   AuthenticationPackageName  NTLM
+# [13]   WorkstationName            WORKSTATION01
+# [14]   TransmittedServices        -
+# [15]   LmPackageName              NTLM V1
+# [16]   KeyLength                  0
+# [17]   ProcessId                  0x0
+# [18]   ProcessName                -
+# [19]   IpAddress                  192.168.1.100
+# [20]   IpPort                     58560

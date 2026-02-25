@@ -112,6 +112,31 @@ Describe 'Build-XPathFilter' {
         }
     }
 
+    Context '-IncludeFailedLogons switch' {
+        It 'Should include both EventID 4624 and 4625' {
+            $filter = Build-XPathFilter -IncludeFailedLogons
+            $filter | Should -Match 'EventID=4624'
+            $filter | Should -Match 'EventID=4625'
+        }
+
+        It 'Should use "or" between event IDs' {
+            $filter = Build-XPathFilter -IncludeFailedLogons
+            $filter | Should -Match 'EventID=4624 or EventID=4625'
+        }
+
+        It 'Should NOT include EventID 4625 by default' {
+            $filter = Build-XPathFilter
+            $filter | Should -Not -Match '4625'
+        }
+
+        It 'Should combine with OnlyNTLMv1 and ExcludeNullSessions' {
+            $filter = Build-XPathFilter -IncludeFailedLogons -OnlyNTLMv1 -ExcludeNullSessions
+            $filter | Should -Match 'EventID=4624 or EventID=4625'
+            $filter | Should -Match 'NTLM V1'
+            $filter | Should -Match 'ANONYMOUS LOGON'
+        }
+    }
+
     Context 'XPath structure validation' {
         It 'Should wrap System filters in Event[System[...]]' {
             $filter = Build-XPathFilter
@@ -175,6 +200,7 @@ Describe 'Convert-EventToObject' {
 
             # Create a mock object that looks like EventLogRecord
             $mockEvent = [PSCustomObject]@{
+                Id          = 4624
                 TimeCreated = $TimeCreated
                 Properties  = $props
             }
@@ -293,9 +319,10 @@ Describe 'Convert-EventToObject' {
             $result = Convert-EventToObject -Event $event -ComputerName 'SRV01'
 
             $expectedProps = @(
-                'Time', 'UserName', 'TargetDomainName', 'LogonType',
+                'EventId', 'Time', 'UserName', 'TargetDomainName', 'LogonType',
                 'WorkstationName', 'LmPackageName', 'IPAddress', 'TCPPort',
-                'ImpersonationLevel', 'ProcessName', 'ComputerName'
+                'ImpersonationLevel', 'ProcessName', 'Status', 'FailureReason',
+                'SubStatus', 'ComputerName'
             )
 
             foreach ($prop in $expectedProps) {
@@ -307,6 +334,20 @@ Describe 'Convert-EventToObject' {
             $event = New-MockEvent
             $result = Convert-EventToObject -Event $event -ComputerName 'SRV01'
             $result.PSObject.TypeNames | Should -Contain 'NtlmLogonEvent'
+        }
+
+        It 'Should set EventId to 4624 for successful logon events' {
+            $event = New-MockEvent
+            $result = Convert-EventToObject -Event $event -ComputerName 'SRV01'
+            $result.EventId | Should -Be 4624
+        }
+
+        It 'Should set Status, FailureReason, SubStatus to null for 4624 events' {
+            $event = New-MockEvent
+            $result = Convert-EventToObject -Event $event -ComputerName 'SRV01'
+            $result.Status | Should -BeNullOrEmpty
+            $result.FailureReason | Should -BeNullOrEmpty
+            $result.SubStatus | Should -BeNullOrEmpty
         }
     }
 
@@ -326,6 +367,190 @@ Describe 'Convert-EventToObject' {
         }
     }
 }
+
+Describe 'Convert-EventToObject (Event ID 4625 - Failed Logon)' {
+
+    BeforeAll {
+        # Create a mock failed logon event (4625) with different property layout
+        function New-MockFailedEvent {
+            param(
+                [string]$UserName = 'testuser',
+                [string]$Domain = 'CONTOSO',
+                [string]$Status = '0xC000006D',
+                [string]$FailureReason = '%%2313',
+                [string]$SubStatus = '0xC0000064',
+                [int]$LogonType = 3,
+                [string]$Workstation = 'WKS01',
+                [string]$LmPackage = 'NTLM V1',
+                [string]$IpAddress = '192.168.1.100',
+                [int]$IpPort = 49832,
+                [string]$ProcessName = '-',
+                [datetime]$TimeCreated = (Get-Date)
+            )
+
+            # Build a properties array matching 4625 field layout (indices 0-20)
+            $props = @(
+                [PSCustomObject]@{ Value = 'S-1-0-0' }          # [0] SubjectUserSid
+                [PSCustomObject]@{ Value = '-' }                  # [1] SubjectUserName
+                [PSCustomObject]@{ Value = '-' }                  # [2] SubjectDomainName
+                [PSCustomObject]@{ Value = '0x0' }                # [3] SubjectLogonId
+                [PSCustomObject]@{ Value = 'S-1-0-0' }           # [4] TargetUserSid
+                [PSCustomObject]@{ Value = $UserName }            # [5] TargetUserName
+                [PSCustomObject]@{ Value = $Domain }              # [6] TargetDomainName
+                [PSCustomObject]@{ Value = $Status }              # [7] Status
+                [PSCustomObject]@{ Value = $FailureReason }       # [8] FailureReason
+                [PSCustomObject]@{ Value = $SubStatus }           # [9] SubStatus
+                [PSCustomObject]@{ Value = $LogonType }           # [10] LogonType
+                [PSCustomObject]@{ Value = 'NtLmSsp' }           # [11] LogonProcessName
+                [PSCustomObject]@{ Value = 'NTLM' }              # [12] AuthenticationPackageName
+                [PSCustomObject]@{ Value = $Workstation }         # [13] WorkstationName
+                [PSCustomObject]@{ Value = '-' }                  # [14] TransmittedServices
+                [PSCustomObject]@{ Value = $LmPackage }           # [15] LmPackageName
+                [PSCustomObject]@{ Value = 0 }                    # [16] KeyLength
+                [PSCustomObject]@{ Value = '0x0' }                # [17] ProcessId
+                [PSCustomObject]@{ Value = $ProcessName }         # [18] ProcessName
+                [PSCustomObject]@{ Value = $IpAddress }           # [19] IpAddress
+                [PSCustomObject]@{ Value = $IpPort }              # [20] IpPort
+            )
+
+            $mockEvent = [PSCustomObject]@{
+                Id          = 4625
+                TimeCreated = $TimeCreated
+                Properties  = $props
+            }
+            $mockEvent.PSObject.TypeNames.Insert(0, 'System.Diagnostics.Eventing.Reader.EventLogRecord')
+            return $mockEvent
+        }
+    }
+
+    Context 'Failed logon field mapping' {
+        It 'Should set EventId to 4625' {
+            $event = New-MockFailedEvent
+            $result = Convert-EventToObject -Event $event -ComputerName 'SRV01'
+            $result.EventId | Should -Be 4625
+        }
+
+        It 'Should map UserName from Properties[5]' {
+            $event = New-MockFailedEvent -UserName 'baduser'
+            $result = Convert-EventToObject -Event $event -ComputerName 'SRV01'
+            $result.UserName | Should -Be 'baduser'
+        }
+
+        It 'Should map TargetDomainName from Properties[6]' {
+            $event = New-MockFailedEvent -Domain 'FABRIKAM'
+            $result = Convert-EventToObject -Event $event -ComputerName 'SRV01'
+            $result.TargetDomainName | Should -Be 'FABRIKAM'
+        }
+
+        It 'Should map LogonType from Properties[10] (not [8])' {
+            $event = New-MockFailedEvent -LogonType 10
+            $result = Convert-EventToObject -Event $event -ComputerName 'SRV01'
+            $result.LogonType | Should -Be 10
+        }
+
+        It 'Should map WorkstationName from Properties[13] (not [11])' {
+            $event = New-MockFailedEvent -Workstation 'ATTACKER-PC'
+            $result = Convert-EventToObject -Event $event -ComputerName 'SRV01'
+            $result.WorkstationName | Should -Be 'ATTACKER-PC'
+        }
+
+        It 'Should map LmPackageName from Properties[15] (not [14])' {
+            $event = New-MockFailedEvent -LmPackage 'NTLM V2'
+            $result = Convert-EventToObject -Event $event -ComputerName 'SRV01'
+            $result.LmPackageName | Should -Be 'NTLM V2'
+        }
+
+        It 'Should map IPAddress from Properties[19] (not [18])' {
+            $event = New-MockFailedEvent -IpAddress '10.0.0.99'
+            $result = Convert-EventToObject -Event $event -ComputerName 'SRV01'
+            $result.IPAddress | Should -Be '10.0.0.99'
+        }
+
+        It 'Should map TCPPort from Properties[20] (not [19])' {
+            $event = New-MockFailedEvent -IpPort 55555
+            $result = Convert-EventToObject -Event $event -ComputerName 'SRV01'
+            $result.TCPPort | Should -Be 55555
+        }
+
+        It 'Should map ProcessName from Properties[18] (not [17])' {
+            $event = New-MockFailedEvent -ProcessName 'C:\Windows\System32\lsass.exe'
+            $result = Convert-EventToObject -Event $event -ComputerName 'SRV01'
+            $result.ProcessName | Should -Be 'C:\Windows\System32\lsass.exe'
+        }
+
+        It 'Should map Status from Properties[7]' {
+            $event = New-MockFailedEvent -Status '0xC000006D'
+            $result = Convert-EventToObject -Event $event -ComputerName 'SRV01'
+            $result.Status | Should -Be '0xC000006D'
+        }
+
+        It 'Should map FailureReason from Properties[8]' {
+            $event = New-MockFailedEvent -FailureReason '%%2313'
+            $result = Convert-EventToObject -Event $event -ComputerName 'SRV01'
+            $result.FailureReason | Should -Be '%%2313'
+        }
+
+        It 'Should map SubStatus from Properties[9]' {
+            $event = New-MockFailedEvent -SubStatus '0xC0000064'
+            $result = Convert-EventToObject -Event $event -ComputerName 'SRV01'
+            $result.SubStatus | Should -Be '0xC0000064'
+        }
+
+        It 'Should set ImpersonationLevel to null for failed logons' {
+            $event = New-MockFailedEvent
+            $result = Convert-EventToObject -Event $event -ComputerName 'SRV01'
+            $result.ImpersonationLevel | Should -BeNullOrEmpty
+        }
+    }
+
+    Context 'Pipeline with mixed event types' {
+        It 'Should process mixed 4624 and 4625 events via pipeline' {
+            # Need New-MockEvent from the outer scope too
+            function New-MockEvent4624 {
+                param([string]$UserName = 'gooduser')
+                $props = @(
+                    [PSCustomObject]@{ Value = 'S-1-0-0' }
+                    [PSCustomObject]@{ Value = '-' }
+                    [PSCustomObject]@{ Value = '-' }
+                    [PSCustomObject]@{ Value = '0x0' }
+                    [PSCustomObject]@{ Value = 'S-1-5-21-123' }
+                    [PSCustomObject]@{ Value = $UserName }
+                    [PSCustomObject]@{ Value = 'CONTOSO' }
+                    [PSCustomObject]@{ Value = '0x12345' }
+                    [PSCustomObject]@{ Value = 3 }
+                    [PSCustomObject]@{ Value = 'NtLmSsp' }
+                    [PSCustomObject]@{ Value = 'NTLM' }
+                    [PSCustomObject]@{ Value = 'WKS01' }
+                    [PSCustomObject]@{ Value = '{00000000-0000-0000-0000-000000000000}' }
+                    [PSCustomObject]@{ Value = '-' }
+                    [PSCustomObject]@{ Value = 'NTLM V2' }
+                    [PSCustomObject]@{ Value = 128 }
+                    [PSCustomObject]@{ Value = '0x0' }
+                    [PSCustomObject]@{ Value = '-' }
+                    [PSCustomObject]@{ Value = '10.0.0.1' }
+                    [PSCustomObject]@{ Value = 49832 }
+                    [PSCustomObject]@{ Value = '%%1833' }
+                )
+                $e = [PSCustomObject]@{ Id = 4624; TimeCreated = (Get-Date); Properties = $props }
+                $e.PSObject.TypeNames.Insert(0, 'System.Diagnostics.Eventing.Reader.EventLogRecord')
+                return $e
+            }
+
+            $events = @(
+                (New-MockEvent4624 -UserName 'gooduser')
+                (New-MockFailedEvent -UserName 'baduser')
+            )
+
+            $results = $events | Convert-EventToObject -ComputerName 'SRV01'
+            $results | Should -HaveCount 2
+            $results[0].EventId | Should -Be 4624
+            $results[0].UserName | Should -Be 'gooduser'
+            $results[0].Status | Should -BeNullOrEmpty
+            $results[1].EventId | Should -Be 4625
+            $results[1].UserName | Should -Be 'baduser'
+            $results[1].Status | Should -Not -BeNullOrEmpty
+        }
+    }
 
 Describe 'Get-NtlmLogonEvents.ps1 Script Parameters' {
 
@@ -355,6 +580,10 @@ Describe 'Get-NtlmLogonEvents.ps1 Script Parameters' {
 
         It 'Should have OnlyNTLMv1 as a switch' {
             $command.Parameters['OnlyNTLMv1'].SwitchParameter | Should -BeTrue
+        }
+
+        It 'Should have IncludeFailedLogons as a switch' {
+            $command.Parameters['IncludeFailedLogons'].SwitchParameter | Should -BeTrue
         }
 
         It 'Should have StartTime parameter of type DateTime' {
@@ -497,6 +726,7 @@ Describe 'Script file quality' {
         $scriptContent | Should -Match '\.PARAMETER Target'
         $scriptContent | Should -Match '\.PARAMETER ExcludeNullSessions'
         $scriptContent | Should -Match '\.PARAMETER OnlyNTLMv1'
+        $scriptContent | Should -Match '\.PARAMETER IncludeFailedLogons'
         $scriptContent | Should -Match '\.PARAMETER StartTime'
         $scriptContent | Should -Match '\.PARAMETER EndTime'
         $scriptContent | Should -Match '\.PARAMETER Credential'
