@@ -203,6 +203,29 @@ ComputerName       : DC01
 **"ActiveDirectory module not found"**
 - Install RSAT: `Add-WindowsCapability -Online -Name Rsat.ActiveDirectory.DS-LDS.Tools~~~~0.0.1.0`
 
+## Testing
+
+The project includes a comprehensive Pester test suite with 60 tests covering:
+
+- **XPath filter generation** — default behavior, NTLMv1 filtering, null session exclusion, time range filters, structural validation
+- **Event-to-object conversion** — field mapping, impersonation level translation, pipeline input, output object shape
+- **Script parameters** — type checks, default values, validation rules, CmdletBinding support
+- **Script execution (mocked)** — warning on no events, object output with mock events, ActiveDirectory module error handling
+- **Script file quality** — help block, coding standards, absence of deprecated patterns
+
+Run the tests:
+
+```powershell
+Invoke-Pester -Path .\Tests\Get-NtlmLogonEvents.Tests.ps1 -Output Detailed
+```
+
+## Version History
+
+| Version | Date | Changes |
+|---|---|---|
+| 2.1 | 2026-02-25 | Fixed parameter splatting for optional DateTime parameters; relaxed pipeline type constraint for testability; added comprehensive Pester test suite (60 tests) |
+| 2.0 | 2026-02-25 | Major rewrite: structured output objects, XPath filtering, date range support, credential support, impersonation level translation |
+
 ## Contributing
 
 Contributions are welcome! Please open an issue or submit a pull request.
