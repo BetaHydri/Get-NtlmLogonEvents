@@ -371,8 +371,8 @@ Describe 'Get-NtlmLogonEvents.ps1 Script Parameters' {
 
         It 'Should support CmdletBinding (Verbose, etc.)' {
             $command.ScriptBlock.Attributes |
-                Where-Object { $_ -is [System.Management.Automation.CmdletBindingAttribute] } |
-                Should -Not -BeNullOrEmpty
+            Where-Object { $_ -is [System.Management.Automation.CmdletBindingAttribute] } |
+            Should -Not -BeNullOrEmpty
         }
     }
 

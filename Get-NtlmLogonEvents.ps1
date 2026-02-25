@@ -227,7 +227,7 @@ function Convert-EventToObject {
 
 # Build the XPath filter
 $filterParams = @{
-  OnlyNTLMv1         = $OnlyNTLMv1
+  OnlyNTLMv1          = $OnlyNTLMv1
   ExcludeNullSessions = $ExcludeNullSessions
 }
 if ($PSBoundParameters.ContainsKey('StartTime')) {
