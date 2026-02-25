@@ -16,6 +16,7 @@ NTLM (including NTLMv1, NTLMv2, and LM) is a legacy authentication protocol that
 ## Features
 
 - Query NTLMv1-only or all NTLM (v1, v2, LM) logon events
+- **Detect Negotiate→NTLM fallbacks** — `AuthenticationPackageName` and `LogonProcessName` fields reveal when Kerberos was attempted but fell back to NTLM
 - **Include failed NTLM logon attempts** (Event ID 4625) for brute-force and relay attack detection
 - Target localhost, a specific remote server, or all domain controllers
 - Filter by date range (`-StartTime` / `-EndTime`)
@@ -155,46 +156,80 @@ cd Get-NtlmLogonEvents
     Where-Object EventId -eq 4625
 ```
 
+### Find Negotiate→NTLM fallbacks (Kerberos failed, fell back to NTLM)
+
+```powershell
+.\Get-NtlmLogonEvents.ps1 -NumEvents 500 |
+    Where-Object AuthenticationPackageName -eq 'Negotiate' |
+    Select-Object UserName, WorkstationName, LmPackageName, IPAddress
+```
+
 ## Sample Output
 
 ### Successful Logon (Event ID 4624)
 
 ```
-EventId            : 4624
-Time               : 2/25/2026 10:23:45 AM
-UserName           : jsmith
-TargetDomainName   : CONTOSO
-LogonType          : 3
-WorkstationName    : WKS-PC042
-LmPackageName      : NTLM V1
-IPAddress          : 192.168.1.50
-TCPPort            : 49832
-ImpersonationLevel : Impersonation
-ProcessName        : -
-Status             :
-FailureReason      :
-SubStatus          :
-ComputerName       : DC01
+EventId                   : 4624
+Time                      : 2/25/2026 10:23:45 AM
+UserName                  : jsmith
+TargetDomainName          : CONTOSO
+LogonType                 : 3
+LogonProcessName          : NtLmSsp
+AuthenticationPackageName : NTLM
+WorkstationName           : WKS-PC042
+LmPackageName             : NTLM V1
+IPAddress                 : 192.168.1.50
+TCPPort                   : 49832
+ImpersonationLevel        : Impersonation
+ProcessName               : -
+Status                    :
+FailureReason             :
+SubStatus                 :
+ComputerName              : DC01
+```
+
+### Negotiate→NTLM Fallback (Kerberos failed)
+
+```
+EventId                   : 4624
+Time                      : 2/25/2026 10:25:03 AM
+UserName                  : jsmith
+TargetDomainName          : CONTOSO
+LogonType                 : 3
+LogonProcessName          : Negotiate
+AuthenticationPackageName : Negotiate
+WorkstationName           : WKS-PC042
+LmPackageName             : NTLM V2
+IPAddress                 : 192.168.1.50
+TCPPort                   : 50112
+ImpersonationLevel        : Impersonation
+ProcessName               : -
+Status                    :
+FailureReason             :
+SubStatus                 :
+ComputerName              : DC01
 ```
 
 ### Failed Logon (Event ID 4625)
 
 ```
-EventId            : 4625
-Time               : 2/25/2026 10:24:12 AM
-UserName           : admin
-TargetDomainName   : CONTOSO
-LogonType          : 3
-WorkstationName    : ATTACKER-PC
-LmPackageName      : NTLM V1
-IPAddress          : 10.0.0.99
-TCPPort            : 55555
-ImpersonationLevel :
-ProcessName        : -
-Status             : 0xC000006D
-FailureReason      : %%2313
-SubStatus          : 0xC0000064
-ComputerName       : DC01
+EventId                   : 4625
+Time                      : 2/25/2026 10:24:12 AM
+UserName                  : admin
+TargetDomainName          : CONTOSO
+LogonType                 : 3
+LogonProcessName          : NtLmSsp
+AuthenticationPackageName : NTLM
+WorkstationName           : ATTACKER-PC
+LmPackageName             : NTLM V1
+IPAddress                 : 10.0.0.99
+TCPPort                   : 55555
+ImpersonationLevel        :
+ProcessName               : -
+Status                    : 0xC000006D
+FailureReason             : %%2313
+SubStatus                 : 0xC0000064
+ComputerName              : DC01
 ```
 
 ## Output Fields
@@ -206,6 +241,8 @@ ComputerName       : DC01
 | `UserName` | Account name that logged on (or attempted to) |
 | `TargetDomainName` | Domain of the target account |
 | `LogonType` | Logon type (e.g., 3 = Network, 10 = RemoteInteractive) |
+| `LogonProcessName` | Logon process (`NtLmSsp` = direct NTLM, `Negotiate` = SPNEGO negotiation) |
+| `AuthenticationPackageName` | Auth package used (`NTLM` = direct, `Negotiate` = Kerberos attempted first → fell back to NTLM) |
 | `WorkstationName` | Name of the source workstation |
 | `LmPackageName` | NTLM version used (`NTLM V1`, `NTLM V2`, etc.) |
 | `IPAddress` | Source IP address |
@@ -268,7 +305,7 @@ Invoke-Pester -Path .\Tests\Get-NtlmLogonEvents.Tests.ps1 -Output Detailed
 
 | Version | Date | Changes |
 |---|---|---|
-| 3.0 | 2026-02-25 | Added `-IncludeFailedLogons` switch for Event ID 4625 (failed logon attempts); EventId/Status/FailureReason/SubStatus output fields; separate property mapping for 4624 vs 4625 layouts |
+| 3.0 | 2026-02-25 | Added `-IncludeFailedLogons` switch for Event ID 4625; `AuthenticationPackageName` and `LogonProcessName` output fields to identify Negotiate→NTLM fallbacks; EventId/Status/FailureReason/SubStatus fields; separate property mapping for 4624 vs 4625 layouts |
 | 2.1 | 2026-02-25 | Fixed parameter splatting for optional DateTime parameters; relaxed pipeline type constraint for testability; added comprehensive Pester test suite (60 tests) |
 | 2.0 | 2026-02-25 | Major rewrite: structured output objects, XPath filtering, date range support, credential support, impersonation level translation |
 

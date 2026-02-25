@@ -620,210 +620,210 @@ Describe 'Convert-EventToObject (Event ID 4625 - Failed Logon)' {
         }
     }
 
-Describe 'Get-NtlmLogonEvents.ps1 Script Parameters' {
+    Describe 'Get-NtlmLogonEvents.ps1 Script Parameters' {
 
-    BeforeAll {
-        $scriptPath = Join-Path (Split-Path $PSScriptRoot -Parent) 'Get-NtlmLogonEvents.ps1'
-        $command = Get-Command $scriptPath
-    }
-
-    Context 'Parameter definitions' {
-        It 'Should have a NumEvents parameter of type Int32' {
-            $command.Parameters['NumEvents'].ParameterType.Name | Should -Be 'Int32'
+        BeforeAll {
+            $scriptPath = Join-Path (Split-Path $PSScriptRoot -Parent) 'Get-NtlmLogonEvents.ps1'
+            $command = Get-Command $scriptPath
         }
 
-        It 'Should default NumEvents to 30' {
-            $command.Parameters['NumEvents'].Attributes |
-            Where-Object { $_ -is [System.Management.Automation.ParameterAttribute] } |
-            Should -Not -BeNullOrEmpty
-        }
-
-        It 'Should have a Target parameter of type String' {
-            $command.Parameters['Target'].ParameterType.Name | Should -Be 'String'
-        }
-
-        It 'Should have ExcludeNullSessions as a switch' {
-            $command.Parameters['ExcludeNullSessions'].SwitchParameter | Should -BeTrue
-        }
-
-        It 'Should have OnlyNTLMv1 as a switch' {
-            $command.Parameters['OnlyNTLMv1'].SwitchParameter | Should -BeTrue
-        }
-
-        It 'Should have IncludeFailedLogons as a switch' {
-            $command.Parameters['IncludeFailedLogons'].SwitchParameter | Should -BeTrue
-        }
-
-        It 'Should have StartTime parameter of type DateTime' {
-            $command.Parameters['StartTime'].ParameterType.Name | Should -Be 'DateTime'
-        }
-
-        It 'Should have EndTime parameter of type DateTime' {
-            $command.Parameters['EndTime'].ParameterType.Name | Should -Be 'DateTime'
-        }
-
-        It 'Should have Credential parameter of type PSCredential' {
-            $command.Parameters['Credential'].ParameterType.Name | Should -Be 'PSCredential'
-        }
-
-        It 'Should support CmdletBinding (Verbose, etc.)' {
-            $command.ScriptBlock.Attributes |
-            Where-Object { $_ -is [System.Management.Automation.CmdletBindingAttribute] } |
-            Should -Not -BeNullOrEmpty
-        }
-    }
-
-    Context 'Parameter validation' {
-        It 'Should reject NumEvents of 0' {
-            { & $scriptPath -NumEvents 0 } | Should -Throw
-        }
-
-        It 'Should reject negative NumEvents' {
-            { & $scriptPath -NumEvents -5 } | Should -Throw
-        }
-
-        It 'Should reject empty Target string' {
-            { & $scriptPath -Target '' } | Should -Throw
-        }
-    }
-}
-
-Describe 'Get-NtlmLogonEvents.ps1 Script Execution (mocked)' {
-
-    BeforeAll {
-        $scriptPath = Join-Path (Split-Path $PSScriptRoot -Parent) 'Get-NtlmLogonEvents.ps1'
-        Import-Module Microsoft.PowerShell.Diagnostics -ErrorAction SilentlyContinue
-    }
-
-    Context 'Local host - no events found' {
-        It 'Should emit a warning when no events are found' {
-            Mock Get-WinEvent {
-                throw [System.Exception]::new('No events were found that match the specified selection criteria.')
+        Context 'Parameter definitions' {
+            It 'Should have a NumEvents parameter of type Int32' {
+                $command.Parameters['NumEvents'].ParameterType.Name | Should -Be 'Int32'
             }
 
-            $result = & $scriptPath 3>&1
-            # The warning stream should contain our message
-            $warnings = $result | Where-Object { $_ -is [System.Management.Automation.WarningRecord] }
-            $warnings | Should -Not -BeNullOrEmpty
-        }
-    }
-
-    Context 'Local host - events found' {
-        It 'Should return objects when events exist' {
-            # Build mock properties array (21 items for indices 0-20)
-            $mockProps = @(
-                [PSCustomObject]@{ Value = 'S-1-0-0' }
-                [PSCustomObject]@{ Value = '-' }
-                [PSCustomObject]@{ Value = '-' }
-                [PSCustomObject]@{ Value = '0x0' }
-                [PSCustomObject]@{ Value = 'S-1-5-21-123' }
-                [PSCustomObject]@{ Value = 'testuser' }
-                [PSCustomObject]@{ Value = 'TESTDOMAIN' }
-                [PSCustomObject]@{ Value = '0xABC' }
-                [PSCustomObject]@{ Value = 3 }
-                [PSCustomObject]@{ Value = 'NtLmSsp' }
-                [PSCustomObject]@{ Value = 'NTLM' }
-                [PSCustomObject]@{ Value = 'TESTPC' }
-                [PSCustomObject]@{ Value = '{00000000-0000-0000-0000-000000000000}' }
-                [PSCustomObject]@{ Value = '-' }
-                [PSCustomObject]@{ Value = 'NTLM V2' }
-                [PSCustomObject]@{ Value = 128 }
-                [PSCustomObject]@{ Value = '0x0' }
-                [PSCustomObject]@{ Value = '-' }
-                [PSCustomObject]@{ Value = '10.0.0.1' }
-                [PSCustomObject]@{ Value = 50000 }
-                [PSCustomObject]@{ Value = '%%1833' }
-            )
-
-            $mockEvent = [PSCustomObject]@{
-                TimeCreated = [datetime]'2026-02-25 10:00:00'
-                Properties  = $mockProps
+            It 'Should default NumEvents to 30' {
+                $command.Parameters['NumEvents'].Attributes |
+                Where-Object { $_ -is [System.Management.Automation.ParameterAttribute] } |
+                Should -Not -BeNullOrEmpty
             }
-            $mockEvent.PSObject.TypeNames.Insert(0, 'System.Diagnostics.Eventing.Reader.EventLogRecord')
 
-            Mock Get-WinEvent { return $mockEvent }
+            It 'Should have a Target parameter of type String' {
+                $command.Parameters['Target'].ParameterType.Name | Should -Be 'String'
+            }
 
-            $result = & $scriptPath -NumEvents 1
-            $result | Should -Not -BeNullOrEmpty
-            $result.UserName | Should -Be 'testuser'
-            $result.LmPackageName | Should -Be 'NTLM V2'
-            $result.ImpersonationLevel | Should -Be 'Impersonation'
+            It 'Should have ExcludeNullSessions as a switch' {
+                $command.Parameters['ExcludeNullSessions'].SwitchParameter | Should -BeTrue
+            }
+
+            It 'Should have OnlyNTLMv1 as a switch' {
+                $command.Parameters['OnlyNTLMv1'].SwitchParameter | Should -BeTrue
+            }
+
+            It 'Should have IncludeFailedLogons as a switch' {
+                $command.Parameters['IncludeFailedLogons'].SwitchParameter | Should -BeTrue
+            }
+
+            It 'Should have StartTime parameter of type DateTime' {
+                $command.Parameters['StartTime'].ParameterType.Name | Should -Be 'DateTime'
+            }
+
+            It 'Should have EndTime parameter of type DateTime' {
+                $command.Parameters['EndTime'].ParameterType.Name | Should -Be 'DateTime'
+            }
+
+            It 'Should have Credential parameter of type PSCredential' {
+                $command.Parameters['Credential'].ParameterType.Name | Should -Be 'PSCredential'
+            }
+
+            It 'Should support CmdletBinding (Verbose, etc.)' {
+                $command.ScriptBlock.Attributes |
+                Where-Object { $_ -is [System.Management.Automation.CmdletBindingAttribute] } |
+                Should -Not -BeNullOrEmpty
+            }
+        }
+
+        Context 'Parameter validation' {
+            It 'Should reject NumEvents of 0' {
+                { & $scriptPath -NumEvents 0 } | Should -Throw
+            }
+
+            It 'Should reject negative NumEvents' {
+                { & $scriptPath -NumEvents -5 } | Should -Throw
+            }
+
+            It 'Should reject empty Target string' {
+                { & $scriptPath -Target '' } | Should -Throw
+            }
         }
     }
 
-    Context 'DCs target without ActiveDirectory module' {
-        It 'Should emit an error if ActiveDirectory module is not available' {
-            Mock Import-Module { throw 'Module not found' }
+    Describe 'Get-NtlmLogonEvents.ps1 Script Execution (mocked)' {
 
-            $result = & $scriptPath -Target DCs 2>&1
-            $errors = $result | Where-Object { $_ -is [System.Management.Automation.ErrorRecord] }
-            $errors | Should -Not -BeNullOrEmpty
+        BeforeAll {
+            $scriptPath = Join-Path (Split-Path $PSScriptRoot -Parent) 'Get-NtlmLogonEvents.ps1'
+            Import-Module Microsoft.PowerShell.Diagnostics -ErrorAction SilentlyContinue
+        }
+
+        Context 'Local host - no events found' {
+            It 'Should emit a warning when no events are found' {
+                Mock Get-WinEvent {
+                    throw [System.Exception]::new('No events were found that match the specified selection criteria.')
+                }
+
+                $result = & $scriptPath 3>&1
+                # The warning stream should contain our message
+                $warnings = $result | Where-Object { $_ -is [System.Management.Automation.WarningRecord] }
+                $warnings | Should -Not -BeNullOrEmpty
+            }
+        }
+
+        Context 'Local host - events found' {
+            It 'Should return objects when events exist' {
+                # Build mock properties array (21 items for indices 0-20)
+                $mockProps = @(
+                    [PSCustomObject]@{ Value = 'S-1-0-0' }
+                    [PSCustomObject]@{ Value = '-' }
+                    [PSCustomObject]@{ Value = '-' }
+                    [PSCustomObject]@{ Value = '0x0' }
+                    [PSCustomObject]@{ Value = 'S-1-5-21-123' }
+                    [PSCustomObject]@{ Value = 'testuser' }
+                    [PSCustomObject]@{ Value = 'TESTDOMAIN' }
+                    [PSCustomObject]@{ Value = '0xABC' }
+                    [PSCustomObject]@{ Value = 3 }
+                    [PSCustomObject]@{ Value = 'NtLmSsp' }
+                    [PSCustomObject]@{ Value = 'NTLM' }
+                    [PSCustomObject]@{ Value = 'TESTPC' }
+                    [PSCustomObject]@{ Value = '{00000000-0000-0000-0000-000000000000}' }
+                    [PSCustomObject]@{ Value = '-' }
+                    [PSCustomObject]@{ Value = 'NTLM V2' }
+                    [PSCustomObject]@{ Value = 128 }
+                    [PSCustomObject]@{ Value = '0x0' }
+                    [PSCustomObject]@{ Value = '-' }
+                    [PSCustomObject]@{ Value = '10.0.0.1' }
+                    [PSCustomObject]@{ Value = 50000 }
+                    [PSCustomObject]@{ Value = '%%1833' }
+                )
+
+                $mockEvent = [PSCustomObject]@{
+                    TimeCreated = [datetime]'2026-02-25 10:00:00'
+                    Properties  = $mockProps
+                }
+                $mockEvent.PSObject.TypeNames.Insert(0, 'System.Diagnostics.Eventing.Reader.EventLogRecord')
+
+                Mock Get-WinEvent { return $mockEvent }
+
+                $result = & $scriptPath -NumEvents 1
+                $result | Should -Not -BeNullOrEmpty
+                $result.UserName | Should -Be 'testuser'
+                $result.LmPackageName | Should -Be 'NTLM V2'
+                $result.ImpersonationLevel | Should -Be 'Impersonation'
+            }
+        }
+
+        Context 'DCs target without ActiveDirectory module' {
+            It 'Should emit an error if ActiveDirectory module is not available' {
+                Mock Import-Module { throw 'Module not found' }
+
+                $result = & $scriptPath -Target DCs 2>&1
+                $errors = $result | Where-Object { $_ -is [System.Management.Automation.ErrorRecord] }
+                $errors | Should -Not -BeNullOrEmpty
+            }
         }
     }
-}
 
-Describe 'Script file quality' {
+    Describe 'Script file quality' {
 
-    BeforeAll {
-        $scriptPath = Join-Path (Split-Path $PSScriptRoot -Parent) 'Get-NtlmLogonEvents.ps1'
-        $scriptContent = Get-Content -Path $scriptPath -Raw
+        BeforeAll {
+            $scriptPath = Join-Path (Split-Path $PSScriptRoot -Parent) 'Get-NtlmLogonEvents.ps1'
+            $scriptContent = Get-Content -Path $scriptPath -Raw
+        }
+
+        It 'Should have #Requires statement for PowerShell 5.1' {
+            $scriptContent | Should -Match '#Requires -Version 5\.1'
+        }
+
+        It 'Should have CmdletBinding attribute' {
+            $scriptContent | Should -Match '\[CmdletBinding\(\)\]'
+        }
+
+        It 'Should have comment-based help with SYNOPSIS' {
+            $scriptContent | Should -Match '\.SYNOPSIS'
+        }
+
+        It 'Should have comment-based help with DESCRIPTION' {
+            $scriptContent | Should -Match '\.DESCRIPTION'
+        }
+
+        It 'Should have comment-based help with EXAMPLE' {
+            $scriptContent | Should -Match '\.EXAMPLE'
+        }
+
+        It 'Should have comment-based help with PARAMETER entries' {
+            $scriptContent | Should -Match '\.PARAMETER NumEvents'
+            $scriptContent | Should -Match '\.PARAMETER Target'
+            $scriptContent | Should -Match '\.PARAMETER ExcludeNullSessions'
+            $scriptContent | Should -Match '\.PARAMETER OnlyNTLMv1'
+            $scriptContent | Should -Match '\.PARAMETER IncludeFailedLogons'
+            $scriptContent | Should -Match '\.PARAMETER StartTime'
+            $scriptContent | Should -Match '\.PARAMETER EndTime'
+            $scriptContent | Should -Match '\.PARAMETER Credential'
+        }
+
+        It 'Should NOT contain the old -IncludeAllNtlm parameter' {
+            $scriptContent | Should -Not -Match 'IncludeAllNtlm'
+        }
+
+        It 'Should NOT contain the old -NullSession boolean parameter' {
+            $scriptContent | Should -Not -Match '\[boolean\]\$NullSession'
+        }
+
+        It 'Should NOT contain the IPAdress typo' {
+            $scriptContent | Should -Not -Match 'IPAdress'
+        }
+
+        It 'Should NOT contain Write-Host (use Write-Verbose/Warning/Error instead)' {
+            $scriptContent | Should -Not -Match 'Write-Host'
+        }
+
+        It 'Should NOT contain $error.Clear()' {
+            $scriptContent | Should -Not -Match '\$error\.Clear\(\)'
+        }
+
+        It 'Should parse without syntax errors' {
+            $tokens = $null
+            $errors = $null
+            [System.Management.Automation.Language.Parser]::ParseFile($scriptPath, [ref]$tokens, [ref]$errors)
+            $errors | Should -HaveCount 0
+        }
     }
-
-    It 'Should have #Requires statement for PowerShell 5.1' {
-        $scriptContent | Should -Match '#Requires -Version 5\.1'
-    }
-
-    It 'Should have CmdletBinding attribute' {
-        $scriptContent | Should -Match '\[CmdletBinding\(\)\]'
-    }
-
-    It 'Should have comment-based help with SYNOPSIS' {
-        $scriptContent | Should -Match '\.SYNOPSIS'
-    }
-
-    It 'Should have comment-based help with DESCRIPTION' {
-        $scriptContent | Should -Match '\.DESCRIPTION'
-    }
-
-    It 'Should have comment-based help with EXAMPLE' {
-        $scriptContent | Should -Match '\.EXAMPLE'
-    }
-
-    It 'Should have comment-based help with PARAMETER entries' {
-        $scriptContent | Should -Match '\.PARAMETER NumEvents'
-        $scriptContent | Should -Match '\.PARAMETER Target'
-        $scriptContent | Should -Match '\.PARAMETER ExcludeNullSessions'
-        $scriptContent | Should -Match '\.PARAMETER OnlyNTLMv1'
-        $scriptContent | Should -Match '\.PARAMETER IncludeFailedLogons'
-        $scriptContent | Should -Match '\.PARAMETER StartTime'
-        $scriptContent | Should -Match '\.PARAMETER EndTime'
-        $scriptContent | Should -Match '\.PARAMETER Credential'
-    }
-
-    It 'Should NOT contain the old -IncludeAllNtlm parameter' {
-        $scriptContent | Should -Not -Match 'IncludeAllNtlm'
-    }
-
-    It 'Should NOT contain the old -NullSession boolean parameter' {
-        $scriptContent | Should -Not -Match '\[boolean\]\$NullSession'
-    }
-
-    It 'Should NOT contain the IPAdress typo' {
-        $scriptContent | Should -Not -Match 'IPAdress'
-    }
-
-    It 'Should NOT contain Write-Host (use Write-Verbose/Warning/Error instead)' {
-        $scriptContent | Should -Not -Match 'Write-Host'
-    }
-
-    It 'Should NOT contain $error.Clear()' {
-        $scriptContent | Should -Not -Match '\$error\.Clear\(\)'
-    }
-
-    It 'Should parse without syntax errors' {
-        $tokens = $null
-        $errors = $null
-        [System.Management.Automation.Language.Parser]::ParseFile($scriptPath, [ref]$tokens, [ref]$errors)
-        $errors | Should -HaveCount 0
-    }
-}
