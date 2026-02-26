@@ -7,7 +7,7 @@
 [![GitHub issues](https://img.shields.io/github/issues/BetaHydri/Get-NtlmLogonEvents)](https://github.com/BetaHydri/Get-NtlmLogonEvents/issues)
 [![GitHub last commit](https://img.shields.io/github/last-commit/BetaHydri/Get-NtlmLogonEvents)](https://github.com/BetaHydri/Get-NtlmLogonEvents/commits/main)
 
-A PowerShell script to query Windows Security event logs for NTLM authentication events (Event ID 4624 for successful logons, and optionally Event ID 4625 for failed logons). It can also correlate NTLM logons with Event ID 4672 to identify privileged sessions, query the NTLM Operational log for process-level detail (events 8001-8006/4001-4006), and check your NTLM audit/restriction GPO configuration. Designed for security auditing and identifying legacy NTLMv1 usage across your environment.
+A PowerShell script to query Windows Security event logs for NTLM authentication events (Event ID 4624 for successful logons, and optionally Event ID 4625 for failed logons). It can also correlate NTLM logons with Event ID 4672 to identify privileged sessions, query the NTLM Operational log for process-level detail (events 8001-8006/4001-4006), and check your NTLM audit/restriction GPO configuration. Designed for security auditing and identifying legacy NTLMv1 and NTLMv2 usage across your environment.
 
 ## Why This Matters
 
