@@ -794,57 +794,57 @@ if ($CheckAuditConfig) {
 
     $policies = @(
       @{
-        Policy  = 'Network security: Restrict NTLM: Audit Incoming NTLM Traffic'
+        Policy = 'Network security: Restrict NTLM: Audit Incoming NTLM Traffic'
         RegPath = "$msv1_0Path\AuditReceivingNTLMTraffic"
-        Path    = $msv1_0Path; Name = 'AuditReceivingNTLMTraffic'
-        Map     = @{ 0 = 'Disable'; 1 = 'Enable auditing for domain accounts'; 2 = 'Enable auditing for all accounts' }
-        Rec     = 'Enable auditing for domain accounts'
+        Path = $msv1_0Path; Name = 'AuditReceivingNTLMTraffic'
+        Map = @{ 0 = 'Disable'; 1 = 'Enable auditing for domain accounts'; 2 = 'Enable auditing for all accounts' }
+        Rec = 'Enable auditing for domain accounts'
         RecTest = { param($v) $null -ne $v -and [int]$v -ge 1 }
-        Scope   = 'All devices'
+        Scope = 'All devices'
       }
       @{
-        Policy  = 'Network security: Restrict NTLM: Outgoing NTLM traffic to remote servers'
+        Policy = 'Network security: Restrict NTLM: Outgoing NTLM traffic to remote servers'
         RegPath = "$msv1_0Path\RestrictSendingNTLMTraffic"
-        Path    = $msv1_0Path; Name = 'RestrictSendingNTLMTraffic'
-        Map     = @{ 0 = 'Allow all'; 1 = 'Audit all'; 2 = 'Deny all' }
-        Rec     = 'Audit all'
+        Path = $msv1_0Path; Name = 'RestrictSendingNTLMTraffic'
+        Map = @{ 0 = 'Allow all'; 1 = 'Audit all'; 2 = 'Deny all' }
+        Rec = 'Audit all'
         RecTest = { param($v) $null -ne $v -and [int]$v -ge 1 }
-        Scope   = 'All devices'
+        Scope = 'All devices'
       }
       @{
-        Policy  = 'Network security: Restrict NTLM: Incoming NTLM traffic'
+        Policy = 'Network security: Restrict NTLM: Incoming NTLM traffic'
         RegPath = "$msv1_0Path\RestrictReceivingNTLMTraffic"
-        Path    = $msv1_0Path; Name = 'RestrictReceivingNTLMTraffic'
-        Map     = @{ 0 = 'Allow all'; 1 = 'Deny all domain accounts'; 2 = 'Deny all accounts' }
-        Rec     = 'Deny all domain accounts'
+        Path = $msv1_0Path; Name = 'RestrictReceivingNTLMTraffic'
+        Map = @{ 0 = 'Allow all'; 1 = 'Deny all domain accounts'; 2 = 'Deny all accounts' }
+        Rec = 'Deny all domain accounts'
         RecTest = { param($v) $null -ne $v -and [int]$v -ge 1 }
-        Scope   = 'All devices'
+        Scope = 'All devices'
       }
       @{
-        Policy  = 'Network security: Restrict NTLM: Audit NTLM authentication in this domain'
+        Policy = 'Network security: Restrict NTLM: Audit NTLM authentication in this domain'
         RegPath = "$netlogonPath\AuditNTLMInDomain"
-        Path    = $netlogonPath; Name = 'AuditNTLMInDomain'
-        Map     = @{ 0 = 'Disable'; 1 = 'Enable for domain accounts to domain servers'; 3 = 'Enable for domain accounts'; 5 = 'Enable for domain servers'; 7 = 'Enable all' }
-        Rec     = 'Enable all'
+        Path = $netlogonPath; Name = 'AuditNTLMInDomain'
+        Map = @{ 0 = 'Disable'; 1 = 'Enable for domain accounts to domain servers'; 3 = 'Enable for domain accounts'; 5 = 'Enable for domain servers'; 7 = 'Enable all' }
+        Rec = 'Enable all'
         RecTest = { param($v) $null -ne $v -and [int]$v -eq 7 }
-        Scope   = 'Domain Controllers only'
+        Scope = 'Domain Controllers only'
       }
       @{
-        Policy  = 'Network security: Restrict NTLM: NTLM authentication in this domain'
+        Policy = 'Network security: Restrict NTLM: NTLM authentication in this domain'
         RegPath = "$netlogonPath\RestrictNTLMInDomain"
-        Path    = $netlogonPath; Name = 'RestrictNTLMInDomain'
-        Map     = @{ 0 = 'Disable'; 1 = 'Deny for domain accounts to domain servers'; 3 = 'Deny for domain accounts'; 5 = 'Deny for domain servers'; 7 = 'Deny all' }
-        Rec     = 'Deny all (final goal)'
+        Path = $netlogonPath; Name = 'RestrictNTLMInDomain'
+        Map = @{ 0 = 'Disable'; 1 = 'Deny for domain accounts to domain servers'; 3 = 'Deny for domain accounts'; 5 = 'Deny for domain servers'; 7 = 'Deny all' }
+        Rec = 'Deny all (final goal)'
         RecTest = { param($v) $null -ne $v -and [int]$v -ge 1 }
-        Scope   = 'Domain Controllers only'
+        Scope = 'Domain Controllers only'
       }
     )
 
     foreach ($p in $policies) {
       $raw = Get-RegValue -Path $p.Path -Name $p.Name
       $setting = if ($null -eq $raw) { 'Not configured' }
-                 elseif ($p.Map.ContainsKey([int]$raw)) { $p.Map[[int]$raw] }
-                 else { "Unknown ($raw)" }
+      elseif ($p.Map.ContainsKey([int]$raw)) { $p.Map[[int]$raw] }
+      else { "Unknown ($raw)" }
       [PSCustomObject]@{
         PolicyName    = $p.Policy
         RegistryPath  = $p.RegPath
@@ -1271,7 +1271,7 @@ if ($Target -eq 'Localhost' -and -not $PSBoundParameters.ContainsKey('ComputerNa
     Write-Verbose 'Querying Microsoft-Windows-NTLM/Operational log for NTLM audit/block events...'
     try {
       Get-WinEvent -LogName 'Microsoft-Windows-NTLM/Operational' -MaxEvents $NumEvents -FilterXPath $ntlmOpFilter -ErrorAction Stop |
-        Convert-NtlmOperationalEventToObject -ComputerName $env:COMPUTERNAME
+      Convert-NtlmOperationalEventToObject -ComputerName $env:COMPUTERNAME
     }
     catch {
       if ($_.Exception.Message -match 'No events were found') {
