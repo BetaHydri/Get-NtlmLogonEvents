@@ -728,6 +728,7 @@ Invoke-Pester -Path .\Tests\Get-NtlmLogonEvents.Tests.ps1 -Output Detailed
 
 | Version | Date | Changes |
 |---|---|---|
+| 4.2 | 2026-02-26 | `-Target Forest` now queries each domain's DCs separately instead of batching all forest DCs into a single `Invoke-Command` call; if one domain's DCs are unreachable (e.g. WinRM/DNS failure), the script emits a warning and continues with the remaining domains instead of failing entirely. Applies to event queries, NTLM operational log queries, and `-CheckAuditConfig`. |
 | 4.1 | 2026-02-26 | Improved error handling for Azure AD-joined clients using `-Target DCs` or `-Target Forest` without line-of-sight to a domain controller; added KDC Proxy documentation references to remediation guide and acknowledgments |
 | 4.0 | 2026-02-26 | **Breaking change:** Refactored to proper PowerShell parameter sets (`Default`, `ComputerName`, `AuditConfig`, `AuditConfigComputerName`); `-Target` now uses `[ValidateSet('Localhost', 'DCs', 'Forest')]` (default `Localhost`); new `-ComputerName` (`String[]`) parameter replaces `-Target <hostname>` for querying specific remote hosts; `-CheckAuditConfig` is mandatory in its own parameter sets; event-only parameters restricted to event query sets; `-Domain` restricted to Target-based sets |
 | 3.3 | 2026-02-26 | Added `-Target Forest` to query all domain controllers across every domain in the AD forest; enumerates domains via `Get-ADForest` and collects DCs from each |
