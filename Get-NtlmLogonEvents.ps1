@@ -908,11 +908,21 @@ if ($CheckAuditConfig) {
       Write-Error "The ActiveDirectory PowerShell module is required for -Target DCs. Install RSAT or run from a DC. Error: $_"
       return
     }
-    $domainControllers = if ($Domain) {
-      Get-ADDomainController -Filter * -Server $Domain | Select-Object -ExpandProperty HostName
+    try {
+      $domainControllers = if ($Domain) {
+        Get-ADDomainController -Filter * -Server $Domain -ErrorAction Stop | Select-Object -ExpandProperty HostName
+      }
+      else {
+        Get-ADDomainController -Filter * -ErrorAction Stop | Select-Object -ExpandProperty HostName
+      }
     }
-    else {
-      Get-ADDomainController -Filter * | Select-Object -ExpandProperty HostName
+    catch {
+      Write-Error "Failed to enumerate domain controllers. Ensure this machine can reach Active Directory Web Services (ADWS). Azure AD-joined clients without line-of-sight to a domain controller cannot use -Target DCs. Error: $_"
+      return
+    }
+    if (-not $domainControllers) {
+      Write-Error 'No domain controllers were found. Verify the domain name and network connectivity.'
+      return
     }
     $domainLabel = if ($Domain) { " in domain '$Domain'" } else { '' }
     Write-Verbose "Checking NTLM audit configuration on DCs${domainLabel}: $($domainControllers -join ', ')"
@@ -934,11 +944,17 @@ if ($CheckAuditConfig) {
       Write-Error "The ActiveDirectory PowerShell module is required for -Target Forest. Install RSAT or run from a DC. Error: $_"
       return
     }
-    $forestDomains = (Get-ADForest).Domains
+    try {
+      $forestDomains = (Get-ADForest -ErrorAction Stop).Domains
+    }
+    catch {
+      Write-Error "Failed to enumerate forest domains. Ensure this machine can reach Active Directory Web Services (ADWS). Azure AD-joined clients without line-of-sight to a domain controller cannot use -Target Forest. Error: $_"
+      return
+    }
     Write-Verbose "Forest domains: $($forestDomains -join ', ')"
     $allDCs = foreach ($dom in $forestDomains) {
       try {
-        Get-ADDomainController -Filter * -Server $dom | Select-Object -ExpandProperty HostName
+        Get-ADDomainController -Filter * -Server $dom -ErrorAction Stop | Select-Object -ExpandProperty HostName
       }
       catch {
         Write-Warning "Failed to enumerate DCs in domain '${dom}': $_"
@@ -1295,11 +1311,21 @@ elseif ($Target -eq 'DCs') {
     return
   }
 
-  $domainControllers = if ($Domain) {
-    Get-ADDomainController -Filter * -Server $Domain | Select-Object -ExpandProperty HostName
+  try {
+    $domainControllers = if ($Domain) {
+      Get-ADDomainController -Filter * -Server $Domain -ErrorAction Stop | Select-Object -ExpandProperty HostName
+    }
+    else {
+      Get-ADDomainController -Filter * -ErrorAction Stop | Select-Object -ExpandProperty HostName
+    }
   }
-  else {
-    Get-ADDomainController -Filter * | Select-Object -ExpandProperty HostName
+  catch {
+    Write-Error "Failed to enumerate domain controllers. Ensure this machine can reach Active Directory Web Services (ADWS). Azure AD-joined clients without line-of-sight to a domain controller cannot use -Target DCs. Error: $_"
+    return
+  }
+  if (-not $domainControllers) {
+    Write-Error 'No domain controllers were found. Verify the domain name and network connectivity.'
+    return
   }
   $domainLabel = if ($Domain) { " in domain '$Domain'" } else { '' }
   Write-Verbose "Querying Security log for $ntlmVersionLabel events on DCs${domainLabel}: $($domainControllers -join ', ')"
@@ -1352,11 +1378,17 @@ elseif ($Target -eq 'Forest') {
     return
   }
 
-  $forestDomains = (Get-ADForest).Domains
+  try {
+    $forestDomains = (Get-ADForest -ErrorAction Stop).Domains
+  }
+  catch {
+    Write-Error "Failed to enumerate forest domains. Ensure this machine can reach Active Directory Web Services (ADWS). Azure AD-joined clients without line-of-sight to a domain controller cannot use -Target Forest. Error: $_"
+    return
+  }
   Write-Verbose "Forest domains: $($forestDomains -join ', ')"
   $allDCs = foreach ($dom in $forestDomains) {
     try {
-      Get-ADDomainController -Filter * -Server $dom | Select-Object -ExpandProperty HostName
+      Get-ADDomainController -Filter * -Server $dom -ErrorAction Stop | Select-Object -ExpandProperty HostName
     }
     catch {
       Write-Warning "Failed to enumerate DCs in domain '${dom}': $_"
