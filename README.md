@@ -667,7 +667,7 @@ Once you’ve identified NTLM usage with this script, investigate why NTLM was s
 | **IP-based Access** | Client connected by IP (Kerberos needs DNS hostname) | 8001 events with IP in TargetName; 4020 events on 24H2+ | Use DNS names; or set `TryIPSPN` registry + register IP SPNs |
 | **App Hardcoded NTLM** | Application explicitly requests NTLM instead of Negotiate | 8001 events showing the process; `AuthenticationPackageName=NTLM` in 4624 | Reconfigure app to use Negotiate; contact vendor |
 | **Negotiate Fallback** | Kerberos tried but failed; NTLM used via SPNEGO | `AuthenticationPackageName=Negotiate` + `LogonProcessName=Negotiate` in 4624 | Fix SPNs, DNS, clock skew, or trust issues |
-| **DC Connectivity** | Client can't reach DC in resource domain for Kerberos | Multi-domain environments with network segmentation | [KDC Proxy](https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-kkdcp) to tunnel Kerberos over HTTPS; [Azure AD App Proxy as KDC Proxy](https://learn.microsoft.com/en-us/entra/identity/app-proxy/application-proxy-configure-kdc-proxy) for Azure AD-joined clients; IAKerb (future) |
+| **DC Connectivity** | Client can't reach DC in resource domain for Kerberos | Multi-domain environments with network segmentation | [KDC Proxy](https://syfuhs.net/kdc-proxy-for-remote-access) to tunnel Kerberos over HTTPS ([MS-KKDCP spec](https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-kkdcp)); IAKerb (future) |
 | **Local Accounts** | Local account auth always uses NTLM | 8002 events; local account in 4624 | Use domain accounts; LocalKDC (Server 2025) |
 | **RPC Endpoint Mapper** | GPO forces NTLM for RPC EPM authentication | 8001 events from System account for RPC | Disable _"Enable RPC Endpoint Mapper Client Authentication"_ GPO |
 | **Loopback Auth** | System account connecting to itself | 8001 events from SYSTEM on same machine | Expected behavior; exempt if needed |
@@ -758,6 +758,5 @@ This project is licensed under the MIT License. See the [LICENSE](LICENSE) file 
 - [The Evolution of Windows Authentication](https://techcommunity.microsoft.com/blog/windows-itpro-blog/the-evolution-of-windows-authentication/3926848)
 - [Auditing and restricting NTLM usage guide](https://learn.microsoft.com/en-us/previous-versions/windows/it-pro/windows-server-2008-r2-and-2008/jj865674(v=ws.10))
 - [KDC Proxy Server (MS-KKDCP) – Protocol specification](https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-kkdcp)
-- [Configuring Kerberos KDC Proxy on Windows Server](https://learn.microsoft.com/en-us/windows-server/security/kerberos/kdc-proxy-server)
-- [Configure Azure AD Application Proxy as KDC Proxy](https://learn.microsoft.com/en-us/entra/identity/app-proxy/application-proxy-configure-kdc-proxy)
-- [Kerberos authentication for Azure AD-joined devices (Hybrid join KDC Proxy)](https://learn.microsoft.com/en-us/entra/identity/devices/howto-hybrid-join-kdc-proxy)
+- [KDC Proxy for Remote Access – Deployment guide](https://syfuhs.net/kdc-proxy-for-remote-access) by Steve Syfuhs (Microsoft)
+- [Configure SSO for Microsoft Entra joined devices](https://learn.microsoft.com/en-us/windows/security/identity-protection/hello-for-business/hello-hybrid-aadj-sso)
