@@ -952,9 +952,12 @@ if ($CheckAuditConfig) {
       return
     }
     Write-Verbose "Forest domains: $($forestDomains -join ', ')"
+    $domainDCMap = @{}
     $allDCs = foreach ($dom in $forestDomains) {
       try {
-        Get-ADDomainController -Filter * -Server $dom -ErrorAction Stop | Select-Object -ExpandProperty HostName
+        $dcs = @(Get-ADDomainController -Filter * -Server $dom -ErrorAction Stop | Select-Object -ExpandProperty HostName)
+        $domainDCMap[$dom] = $dcs
+        $dcs
       }
       catch {
         Write-Warning "Failed to enumerate DCs in domain '${dom}': $_"
@@ -966,12 +969,16 @@ if ($CheckAuditConfig) {
     }
     Write-Verbose "Checking NTLM audit configuration on forest DCs: $($allDCs -join ', ')"
 
-    $checkInvokeParams['ComputerName'] = $allDCs
-    try {
-      Invoke-Command @checkInvokeParams | Select-Object $auditConfigOutputProperties
-    }
-    catch {
-      Write-Error "Failed to check audit configuration on forest domain controllers: $_"
+    foreach ($dom in $domainDCMap.Keys) {
+      $domDCs = $domainDCMap[$dom]
+      Write-Verbose "Checking NTLM audit configuration on DCs in domain '${dom}': $($domDCs -join ', ')"
+      $checkInvokeParams['ComputerName'] = $domDCs
+      try {
+        Invoke-Command @checkInvokeParams | Select-Object $auditConfigOutputProperties
+      }
+      catch {
+        Write-Warning "Failed to check audit configuration on DCs in domain '${dom}': $_"
+      }
     }
   }
   elseif ($PSBoundParameters.ContainsKey('ComputerName')) {
@@ -1386,9 +1393,12 @@ elseif ($Target -eq 'Forest') {
     return
   }
   Write-Verbose "Forest domains: $($forestDomains -join ', ')"
+  $domainDCMap = @{}
   $allDCs = foreach ($dom in $forestDomains) {
     try {
-      Get-ADDomainController -Filter * -Server $dom -ErrorAction Stop | Select-Object -ExpandProperty HostName
+      $dcs = @(Get-ADDomainController -Filter * -Server $dom -ErrorAction Stop | Select-Object -ExpandProperty HostName)
+      $domainDCMap[$dom] = $dcs
+      $dcs
     }
     catch {
       Write-Warning "Failed to enumerate DCs in domain '${dom}': $_"
@@ -1400,38 +1410,41 @@ elseif ($Target -eq 'Forest') {
   }
   Write-Verbose "Querying Security log for $ntlmVersionLabel events on forest DCs: $($allDCs -join ', ')"
 
-  $invokeParams['ComputerName'] = $allDCs
-
-  try {
-    Invoke-Command @invokeParams |
-    Select-Object $outputProperties
-  }
-  catch {
-    Write-Error "Failed to query forest domain controllers: $_"
-  }
-
-  # NTLM Operational log on all forest DCs
-  if ($IncludeNtlmOperationalLog) {
-    Write-Verbose 'Querying Microsoft-Windows-NTLM/Operational log on all forest DCs...'
-    $ntlmOpInvokeParams = @{
-      ScriptBlock  = $ntlmOpRemoteScriptBlock
-      ComputerName = $allDCs
-      ArgumentList = @($ntlmOpFilter, $NumEvents)
-      ErrorAction  = 'Stop'
-    }
-    if ($Credential -ne [System.Management.Automation.PSCredential]::Empty) {
-      $ntlmOpInvokeParams['Credential'] = $Credential
-    }
+  foreach ($dom in $domainDCMap.Keys) {
+    $domDCs = $domainDCMap[$dom]
+    Write-Verbose "Querying Security log on DCs in domain '${dom}': $($domDCs -join ', ')"
+    $invokeParams['ComputerName'] = $domDCs
     try {
-      Invoke-Command @ntlmOpInvokeParams |
-      Select-Object $ntlmOpOutputProperties
+      Invoke-Command @invokeParams |
+      Select-Object $outputProperties
     }
     catch {
-      if ($_.Exception.Message -match 'No events were found') {
-        Write-Warning 'No NTLM operational events found on forest domain controllers. Ensure NTLM auditing policies are configured.'
+      Write-Warning "Failed to query DCs in domain '${dom}': $_"
+    }
+
+    # NTLM Operational log per domain
+    if ($IncludeNtlmOperationalLog) {
+      Write-Verbose "Querying Microsoft-Windows-NTLM/Operational log on DCs in domain '${dom}'..."
+      $ntlmOpInvokeParams = @{
+        ScriptBlock  = $ntlmOpRemoteScriptBlock
+        ComputerName = $domDCs
+        ArgumentList = @($ntlmOpFilter, $NumEvents)
+        ErrorAction  = 'Stop'
       }
-      else {
-        Write-Warning "Failed to query NTLM Operational log on forest domain controllers: $_"
+      if ($Credential -ne [System.Management.Automation.PSCredential]::Empty) {
+        $ntlmOpInvokeParams['Credential'] = $Credential
+      }
+      try {
+        Invoke-Command @ntlmOpInvokeParams |
+        Select-Object $ntlmOpOutputProperties
+      }
+      catch {
+        if ($_.Exception.Message -match 'No events were found') {
+          Write-Warning "No NTLM operational events found on DCs in domain '${dom}'. Ensure NTLM auditing policies are configured."
+        }
+        else {
+          Write-Warning "Failed to query NTLM Operational log on DCs in domain '${dom}': $_"
+        }
       }
     }
   }
