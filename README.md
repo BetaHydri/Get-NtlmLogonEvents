@@ -49,6 +49,7 @@ This script exposes both `AuthenticationPackageName` and `LogonProcessName` so y
 | Privileges | Must run elevated (Administrator) to read the Security event log |
 | Remote targets | WinRM enabled on remote hosts (`winrm quickconfig`) |
 | Domain Controllers | ActiveDirectory PowerShell module (RSAT) |
+| NTLM Operational log | Requires NTLM auditing GPO policies to be configured first (see [Prerequisites for NTLM Operational Log](#prerequisites-for-ntlm-operational-log)). The log channel itself is enabled by default — no manual enablement needed. |
 
 ## Installation
 
@@ -326,6 +327,25 @@ Before you can collect NTLM operational events (8001–8006), the corresponding 
 ### NTLM Operational Log Events
 
 The `Microsoft-Windows-NTLM/Operational` log provides process-level detail that Security log events (4624/4625) lack. Use `-IncludeNtlmOperationalLog` to query these events alongside the Security log results.
+
+#### Prerequisites for NTLM Operational Log
+
+The log channel (`Microsoft-Windows-NTLM/Operational`) is **enabled by default** on all Windows machines, including Domain Controllers — you do **not** need to manually enable it. However, **no events are written** unless the corresponding NTLM auditing GPO policies are configured:
+
+| Events | Prerequisite GPO Settings |
+|---|---|
+| **8001–8006** (audit events) | _Restrict NTLM: Outgoing NTLM traffic_ set to **Audit all**, _Audit Incoming NTLM Traffic_ enabled, and/or _Audit NTLM authentication in this domain_ enabled (DCs) |
+| **4001–4006** (block events) | _Restrict NTLM: Incoming/Outgoing NTLM traffic_ or _NTLM authentication in this domain_ set to a **Deny** value |
+
+Use `-CheckAuditConfig` to verify whether these policies are configured on your target machines:
+
+```powershell
+# Verify audit policies are enabled before querying operational events
+.\Get-NtlmLogonEvents.ps1 -CheckAuditConfig
+.\Get-NtlmLogonEvents.ps1 -CheckAuditConfig -Target DCs
+```
+
+If `-IncludeNtlmOperationalLog` returns no events, run `-CheckAuditConfig` first to identify which policies need to be enabled. See the [NTLM Audit GPO Settings Reference](#ntlm-audit-gpo-settings-reference) and [Recommended Blocking Strategy](#recommended-blocking-strategy) sections for details.
 
 ```powershell
 # Get both Security log and NTLM operational events
