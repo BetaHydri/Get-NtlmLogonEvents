@@ -7,7 +7,7 @@
 [![GitHub issues](https://img.shields.io/github/issues/BetaHydri/Get-NtlmLogonEvents)](https://github.com/BetaHydri/Get-NtlmLogonEvents/issues)
 [![GitHub last commit](https://img.shields.io/github/last-commit/BetaHydri/Get-NtlmLogonEvents)](https://github.com/BetaHydri/Get-NtlmLogonEvents/commits/main)
 
-A PowerShell script to query Windows Security event logs for NTLM authentication events (Event ID 4624 for successful logons, and optionally Event ID 4625 for failed logons). It can also correlate NTLM logons with Event ID 4672 to identify privileged sessions using NTLM. Designed for security auditing and identifying legacy NTLMv1 usage across your environment.
+A PowerShell script to query Windows Security event logs for NTLM authentication events (Event ID 4624 for successful logons, and optionally Event ID 4625 for failed logons). It can also correlate NTLM logons with Event ID 4672 to identify privileged sessions, query the NTLM Operational log for process-level detail (events 8001-8006/4001-4006), and check your NTLM audit/restriction GPO configuration. Designed for security auditing and identifying legacy NTLMv1 usage across your environment.
 
 ## Why This Matters
 
@@ -32,10 +32,12 @@ This script exposes both `AuthenticationPackageName` and `LogonProcessName` so y
 - **Detect Negotiate→NTLM fallbacks** — `AuthenticationPackageName` and `LogonProcessName` fields reveal when Kerberos was attempted but fell back to NTLM
 - **Include failed NTLM logon attempts** (Event ID 4625) for brute-force and relay attack detection
 - **Correlate with privileged logons** — `-CorrelatePrivileged` cross-references Event ID 4672 to flag NTLM logons that received elevated privileges (high-value relay/pass-the-hash targets)
-- Target localhost, a specific remote server, or all domain controllers
+- Target localhost, a specific remote server, all domain controllers, or **all DCs across the entire AD forest**
 - Filter by date range (`-StartTime` / `-EndTime`)
 - Exclude null sessions (ANONYMOUS LOGON)
 - Alternate credential support for remote connections
+- **Query NTLM Operational log** — `-IncludeNtlmOperationalLog` queries the `Microsoft-Windows-NTLM/Operational` log for audit events (8001-8006) and block events (4001-4006) that capture process names, target server SPNs, and secure channel names
+- **Check NTLM audit configuration** — `-CheckAuditConfig` reads the relevant registry values and reports whether recommended NTLM auditing GPO settings are enabled ([reference](https://techcommunity.microsoft.com/blog/coreinfrastructureandsecurityblog/active-directory-hardening-series---part-8-%E2%80%93-disabling-ntlm/4485782))
 - Translates impersonation level codes (`%%1831`–`%%1834`) to human-readable names (see [Impersonation Levels Reference](#impersonation-levels-reference))
 - Outputs structured `PSCustomObject` — pipeable to `Export-Csv`, `ConvertTo-Json`, `Format-Table`, etc.
 
@@ -59,18 +61,30 @@ cd Get-NtlmLogonEvents
 
 ## Parameters
 
-| Parameter | Type | Default | Description |
-|---|---|---|---|
-| `-NumEvents` | Int | `30` | Maximum number of events to return per host |
-| `-Target` | String | `.` (localhost) | Target: `.` for localhost, `DCs` for all domain controllers, or a hostname |
-| `-OnlyNTLMv1` | Switch | Off | Return only NTLMv1 events (default: all NTLM versions) |
-| `-ExcludeNullSessions` | Switch | Off | Filter out ANONYMOUS LOGON (null session) events |
-| `-IncludeFailedLogons` | Switch | Off | Also query failed logon attempts (Event ID 4625) |
-| `-CorrelatePrivileged` | Switch | Off | Correlate with Event ID 4672 to identify privileged NTLM logon sessions |
-| `-Domain` | String | — | AD domain to query when using `-Target DCs` (passed as `-Server` to `Get-ADDomainController`) |
-| `-StartTime` | DateTime | — | Only return events after this date/time |
-| `-EndTime` | DateTime | — | Only return events before this date/time |
-| `-Credential` | PSCredential | — | Alternate credentials for remote connections |
+| Parameter | Type | Default | Parameter Sets | Description |
+|---|---|---|---|---|
+| `-Target` | String | `Localhost` | Default, AuditConfig | Target scope: `Localhost`, `DCs` (domain controllers), or `Forest` (all DCs across the AD forest). Constrained by `ValidateSet`. |
+| `-ComputerName` | String[] | — | ComputerName, AuditConfigComputerName | One or more specific remote host(s) to query. Mandatory in its parameter sets. |
+| `-NumEvents` | Int | `30` | Default, ComputerName | Maximum number of events to return per host |
+| `-OnlyNTLMv1` | Switch | Off | Default, ComputerName | Return only NTLMv1 events (default: all NTLM versions) |
+| `-ExcludeNullSessions` | Switch | Off | Default, ComputerName | Filter out ANONYMOUS LOGON (null session) events |
+| `-IncludeFailedLogons` | Switch | Off | Default, ComputerName | Also query failed logon attempts (Event ID 4625) |
+| `-CorrelatePrivileged` | Switch | Off | Default, ComputerName | Correlate with Event ID 4672 to identify privileged NTLM logon sessions |
+| `-IncludeNtlmOperationalLog` | Switch | Off | Default, ComputerName | Also query `Microsoft-Windows-NTLM/Operational` log (events 8001-8006 audit + 4001-4006 block) |
+| `-CheckAuditConfig` | Switch | — | AuditConfig, AuditConfigComputerName | Check NTLM audit/restriction GPO registry settings (standalone mode — no event queries). Mandatory in its parameter sets. |
+| `-Domain` | String | — | Default, AuditConfig | AD domain to query when using `-Target DCs` (passed as `-Server` to `Get-ADDomainController`). Not used with `-Target Forest`. |
+| `-StartTime` | DateTime | — | Default, ComputerName | Only return events after this date/time |
+| `-EndTime` | DateTime | — | Default, ComputerName | Only return events before this date/time |
+| `-Credential` | PSCredential | — | All | Alternate credentials for remote connections |
+
+### Parameter Sets
+
+| Parameter Set | Purpose | Key Parameters |
+|---|---|---|
+| **Default** | Event log queries using `-Target` scope | `-Target` (Localhost/DCs/Forest), event filters |
+| **ComputerName** | Event log queries on specific host(s) | `-ComputerName` (mandatory), event filters |
+| **AuditConfig** | Audit config check using `-Target` scope | `-CheckAuditConfig` (mandatory), `-Target` |
+| **AuditConfigComputerName** | Audit config check on specific host(s) | `-CheckAuditConfig` (mandatory), `-ComputerName` (mandatory) |
 
 ## Usage Examples
 
@@ -83,11 +97,17 @@ cd Get-NtlmLogonEvents
 # Limit to 10 events
 .\Get-NtlmLogonEvents.ps1 -NumEvents 10
 
-# Query a remote server
-.\Get-NtlmLogonEvents.ps1 -Target server.contoso.com
+# Query a specific remote server
+.\Get-NtlmLogonEvents.ps1 -ComputerName server.contoso.com
+
+# Query multiple remote servers
+.\Get-NtlmLogonEvents.ps1 -ComputerName server1.contoso.com, server2.contoso.com
 
 # Query all domain controllers
 .\Get-NtlmLogonEvents.ps1 -Target DCs
+
+# Query all DCs across the entire AD forest
+.\Get-NtlmLogonEvents.ps1 -Target Forest
 
 # Query DCs in a specific domain (multi-domain forest or trusted domain)
 .\Get-NtlmLogonEvents.ps1 -Target DCs -Domain child.contoso.com
@@ -96,7 +116,7 @@ cd Get-NtlmLogonEvents
 .\Get-NtlmLogonEvents.ps1 -Target DCs -Domain partner.fabrikam.com -Credential (Get-Credential)
 
 # Use alternate credentials for remote connections
-.\Get-NtlmLogonEvents.ps1 -Target server.contoso.com -Credential (Get-Credential)
+.\Get-NtlmLogonEvents.ps1 -ComputerName server.contoso.com -Credential (Get-Credential)
 
 # Verbose output for troubleshooting
 .\Get-NtlmLogonEvents.ps1 -Target DCs -Verbose
@@ -109,7 +129,7 @@ cd Get-NtlmLogonEvents
 .\Get-NtlmLogonEvents.ps1 -OnlyNTLMv1
 
 # NTLMv1-only from a specific server
-.\Get-NtlmLogonEvents.ps1 -Target server.contoso.com -OnlyNTLMv1
+.\Get-NtlmLogonEvents.ps1 -ComputerName server.contoso.com -OnlyNTLMv1
 
 # Exclude null sessions (ANONYMOUS LOGON) to focus on real users
 .\Get-NtlmLogonEvents.ps1 -ExcludeNullSessions
@@ -276,6 +296,64 @@ When Kerberos negotiation fails (e.g., missing SPNs, clock skew, DNS issues), Wi
     Set-Content -Path .\ntlm_report.html
 ```
 
+### NTLM Audit Configuration Check
+
+Before you can collect NTLM operational events (8001–8006), the corresponding GPO auditing policies must be enabled. The `-CheckAuditConfig` switch reads the relevant registry values and reports each policy’s current state against Microsoft’s recommended settings from the [AD Hardening Series – Part 8](https://techcommunity.microsoft.com/blog/coreinfrastructureandsecurityblog/active-directory-hardening-series---part-8-%E2%80%93-disabling-ntlm/4485782).
+
+```powershell
+# Check NTLM audit configuration on the local machine
+.\Get-NtlmLogonEvents.ps1 -CheckAuditConfig
+
+# Check on all domain controllers
+.\Get-NtlmLogonEvents.ps1 -CheckAuditConfig -Target DCs
+
+# Check on all DCs across the entire forest
+.\Get-NtlmLogonEvents.ps1 -CheckAuditConfig -Target Forest
+
+# Check on a specific remote server
+.\Get-NtlmLogonEvents.ps1 -CheckAuditConfig -ComputerName server.contoso.com
+
+# Check on multiple remote servers
+.\Get-NtlmLogonEvents.ps1 -CheckAuditConfig -ComputerName server1.contoso.com, server2.contoso.com
+
+# Check on DCs in a trusted domain
+.\Get-NtlmLogonEvents.ps1 -CheckAuditConfig -Target DCs -Domain partner.fabrikam.com -Credential (Get-Credential)
+
+# Show only policies that are NOT at the recommended setting
+.\Get-NtlmLogonEvents.ps1 -CheckAuditConfig | Where-Object { -not $_.IsRecommended }
+```
+
+### NTLM Operational Log Events
+
+The `Microsoft-Windows-NTLM/Operational` log provides process-level detail that Security log events (4624/4625) lack. Use `-IncludeNtlmOperationalLog` to query these events alongside the Security log results.
+
+```powershell
+# Get both Security log and NTLM operational events
+.\Get-NtlmLogonEvents.ps1 -IncludeNtlmOperationalLog
+
+# Get only the operational events (filter by PSTypeName)
+.\Get-NtlmLogonEvents.ps1 -IncludeNtlmOperationalLog -NumEvents 500 |
+    Where-Object { $_.PSObject.TypeNames -contains 'NtlmOperationalEvent' }
+
+# Show which processes are using NTLM (from operational events)
+.\Get-NtlmLogonEvents.ps1 -IncludeNtlmOperationalLog -NumEvents 1000 |
+    Where-Object ProcessName |
+    Group-Object ProcessName |
+    Sort-Object Count -Descending |
+    Select-Object Count, Name
+
+# Check for NTLM block events (4001-4006) — indicates blocking is active
+.\Get-NtlmLogonEvents.ps1 -IncludeNtlmOperationalLog -NumEvents 500 |
+    Where-Object EventType -eq 'Block'
+
+# Combined: operational events on all DCs, last 7 days
+.\Get-NtlmLogonEvents.ps1 -Target DCs -IncludeNtlmOperationalLog -NumEvents 1000 `
+    -StartTime (Get-Date).AddDays(-7) |
+    Where-Object EventId -ge 8001 |
+    Sort-Object Time |
+    Format-Table Time, EventDescription, UserName, WorkstationName, ProcessName, ComputerName
+```
+
 ## Sample Output
 
 ### Successful Logon (Event ID 4624)
@@ -372,6 +450,36 @@ PrivilegeList             : SeSecurityPrivilege
 ComputerName              : DC01
 ```
 
+### NTLM Operational Event (with `-IncludeNtlmOperationalLog`)
+
+```
+EventId          : 8001
+EventType        : Audit
+EventDescription : Outgoing NTLM authentication (client-side)
+Time             : 2/25/2026 10:25:10 AM
+UserName         : jsmith
+DomainName       : CONTOSO
+TargetName       : HTTP/intranet.contoso.local
+WorkstationName  :
+SecureChannelName:
+ProcessName      : C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe
+ProcessId        : 12456
+ComputerName     : WKS-PC042
+```
+
+### Audit Configuration Check (with `-CheckAuditConfig`)
+
+```
+PolicyName    : Network security: Restrict NTLM: Audit Incoming NTLM Traffic
+RegistryPath  : HKLM:\SYSTEM\CurrentControlSet\Control\Lsa\MSV1_0\AuditReceivingNTLMTraffic
+RawValue      : 1
+Setting       : Enable auditing for domain accounts
+Recommended   : Enable auditing for domain accounts
+IsRecommended : True
+Scope         : All devices
+ComputerName  : DC01
+```
+
 ## Output Fields
 
 | Field | Description |
@@ -396,6 +504,36 @@ ComputerName              : DC01
 | `IsPrivileged` | Whether the logon session received special privileges (only with `-CorrelatePrivileged`) |
 | `PrivilegeList` | Privileges assigned to the logon session (only with `-CorrelatePrivileged`) |
 | `ComputerName` | Computer where the event was logged |
+
+### NTLM Operational Event Fields (with `-IncludeNtlmOperationalLog`)
+
+| Field | Description |
+|---|---|
+| `EventId` | Event ID (8001-8006 = audit, 4001-4006 = block) |
+| `EventType` | `Audit` or `Block` |
+| `EventDescription` | Human-readable description of the event type |
+| `Time` | Timestamp of the event |
+| `UserName` | Authenticating user |
+| `DomainName` | User’s domain |
+| `TargetName` | Target server SPN (8001/4001 only, e.g. `HTTP/server.contoso.local`) |
+| `WorkstationName` | Client device name (8002-8006/4002-4006) |
+| `SecureChannelName` | Server being authenticated to via secure channel (8004-8006/4004-4006, DC events) |
+| `ProcessName` | Process name initiating or receiving NTLM (8001-8003/4001-4003) |
+| `ProcessId` | Process ID (8001-8003/4001-4003) |
+| `ComputerName` | Computer where the event was logged |
+
+### Audit Configuration Fields (with `-CheckAuditConfig`)
+
+| Field | Description |
+|---|---|
+| `PolicyName` | GPO policy name |
+| `RegistryPath` | Full registry path of the setting |
+| `RawValue` | Raw DWORD value from the registry (`$null` if not configured) |
+| `Setting` | Human-readable interpretation of the current value |
+| `Recommended` | Recommended setting per Microsoft’s AD hardening guidance |
+| `IsRecommended` | `$true` if the current setting meets or exceeds the recommendation |
+| `Scope` | Whether the policy applies to all devices or domain controllers only |
+| `ComputerName` | Computer where the configuration was read |
 
 ## Logon Types Reference
 
@@ -440,6 +578,83 @@ Common failure status codes seen in Event ID 4625:
 | `0xC0000133` | Clock skew too great between client and server |
 | `0xC0000224` | User must change password at next logon |
 
+## NTLM Event ID Reference
+
+This table summarizes all NTLM-related event IDs across different Windows logs. Based on guidance from Microsoft’s [Active Directory Hardening Series – Part 8 – Disabling NTLM](https://techcommunity.microsoft.com/blog/coreinfrastructureandsecurityblog/active-directory-hardening-series---part-8-%E2%80%93-disabling-ntlm/4485782).
+
+| Event ID | Log | Description | Pros | Cons |
+|---|---|---|---|---|
+| **4776** | Security | Credential Validation (DC) | Only requires DC log collection; baselines NTLM volume | Only captures client + user; not target server |
+| **4624** | Security | Successful logon | Captures user, client, NTLM version, target server | Requires collection from all devices; no process name |
+| **4625** | Security | Failed logon | Captures failed NTLM attempts with status codes | Requires collection from all devices |
+| **4672** | Security | Special privileges assigned | Identifies privileged NTLM logon sessions | Must be correlated with 4624 by TargetLogonId |
+| **8001** | NTLM Operational | Outgoing NTLM audit (client) | Captures target server SPN, process name, user | Requires GPO: _Outgoing NTLM traffic_ = Audit all |
+| **8002** | NTLM Operational | Incoming NTLM audit (local/loopback) | Captures process name being accessed | Requires GPO: _Audit Incoming NTLM Traffic_ |
+| **8003** | NTLM Operational | Incoming NTLM audit (domain account, server) | Captures client name + process on server | Requires GPO: _Audit NTLM auth in this domain_ (DC) |
+| **8004** | NTLM Operational | NTLM credential validation (DC) | Client + server (secure channel) from DC only | Requires GPO: _Audit NTLM auth in this domain_ (DC) |
+| **8005** | NTLM Operational | Direct NTLM auth to DC | Detects direct NTLM to DC | DC-only |
+| **8006** | NTLM Operational | Cross-domain NTLM auth (DC) | Detects NTLM across trust boundaries | DC-only |
+| **4001–4006** | NTLM Operational | NTLM **blocked** (mirrors 8001–8006) | Confirms blocking is working | Only logged when blocking policies are active |
+| **4020,4022,4032** | NTLM Operational | Enhanced NTLM audit (Win11 24H2 / Server 2025+) | Includes fallback reason, SPN, negotiation flags, NTLM version | Only on newest OS; not yet widely available |
+
+## NTLM Audit GPO Settings Reference
+
+These Group Policy settings control NTLM auditing and restriction. Use `-CheckAuditConfig` to verify their state.
+
+### Auditing Policies (enable first)
+
+| GPO Setting | Registry Path | Recommended | Values |
+|---|---|---|---|
+| Restrict NTLM: Audit Incoming NTLM Traffic | `HKLM\SYSTEM\CCS\Control\Lsa\MSV1_0\AuditReceivingNTLMTraffic` | Enable auditing for domain accounts | 0=Disable, 1=Domain accounts, 2=All accounts |
+| Restrict NTLM: Outgoing NTLM traffic to remote servers | `HKLM\SYSTEM\CCS\Control\Lsa\MSV1_0\RestrictSendingNTLMTraffic` | Audit all | 0=Allow all, 1=Audit all, 2=Deny all |
+| Restrict NTLM: Audit NTLM authentication in this domain | `HKLM\SYSTEM\CCS\Services\Netlogon\Parameters\AuditNTLMInDomain` | Enable all (DCs only) | 0=Disable, 1=Domain→domain servers, 3=Domain accounts, 5=Domain servers, 7=All |
+
+### Blocking Policies (enforce after remediation)
+
+| GPO Setting | Registry Path | Recommended | Values |
+|---|---|---|---|
+| Restrict NTLM: Incoming NTLM traffic | `HKLM\SYSTEM\CCS\Control\Lsa\MSV1_0\RestrictReceivingNTLMTraffic` | Deny all domain accounts | 0=Allow all, 1=Deny domain accounts, 2=Deny all |
+| Restrict NTLM: NTLM authentication in this domain | `HKLM\SYSTEM\CCS\Services\Netlogon\Parameters\RestrictNTLMInDomain` | Deny all (final goal, DCs only) | 0=Disable, 1=Domain→domain servers, 3=Domain accounts, 5=Domain servers, 7=All |
+
+### Exception Lists
+
+| GPO Setting | Registry Path | Notes |
+|---|---|---|
+| Add remote server exceptions for NTLM authentication | `HKLM\...\MSV1_0\ClientAllowedNTLMServers` | Servers allowed for outbound NTLM (supports wildcards and SPN format) |
+| Add server exceptions in this domain | `HKLM\...\Netlogon\Parameters\DCAllowedNTLMServers` | Servers exempted from domain-wide NTLM restrictions (DCs only) |
+
+> **Path note:** `CCS` = `CurrentControlSet`. All settings are under `Computer Configuration\Policies\Windows Settings\Security Settings\Local Policies\Security Options`.
+
+## NTLM Remediation Guide
+
+Once you’ve identified NTLM usage with this script, investigate why NTLM was selected over Kerberos. Common root causes:
+
+| Category | Cause | How to Detect | Fix |
+|---|---|---|---|
+| **SPN Issues** | Missing or duplicate SPNs | `setspn -x` (duplicates); Event 4769 failures; 4020 events on 24H2+ | Register correct SPNs; remove duplicates |
+| **IP-based Access** | Client connected by IP (Kerberos needs DNS hostname) | 8001 events with IP in TargetName; 4020 events on 24H2+ | Use DNS names; or set `TryIPSPN` registry + register IP SPNs |
+| **App Hardcoded NTLM** | Application explicitly requests NTLM instead of Negotiate | 8001 events showing the process; `AuthenticationPackageName=NTLM` in 4624 | Reconfigure app to use Negotiate; contact vendor |
+| **Negotiate Fallback** | Kerberos tried but failed; NTLM used via SPNEGO | `AuthenticationPackageName=Negotiate` + `LogonProcessName=Negotiate` in 4624 | Fix SPNs, DNS, clock skew, or trust issues |
+| **DC Connectivity** | Client can’t reach DC in resource domain for Kerberos | Multi-domain environments with network segmentation | KDC Proxy; IAKerb (future) |
+| **Local Accounts** | Local account auth always uses NTLM | 8002 events; local account in 4624 | Use domain accounts; LocalKDC (Server 2025) |
+| **RPC Endpoint Mapper** | GPO forces NTLM for RPC EPM authentication | 8001 events from System account for RPC | Disable _"Enable RPC Endpoint Mapper Client Authentication"_ GPO |
+| **Loopback Auth** | System account connecting to itself | 8001 events from SYSTEM on same machine | Expected behavior; exempt if needed |
+| **Print Spooler** | Named Pipe auth with bad SPN (`krbtgt/NT Authority`) | Kerberos errors in System log | Configure Print Spooler to use RPC over TCP |
+| **External Trusts** | External trusts default to NTLM | Cross-domain 8006 events; 4624 from trusted domain | Convert to forest trusts |
+
+### Recommended Blocking Strategy
+
+1. **Baseline** — Enable auditing GPOs and collect 8001-8006 events for 2-4 weeks
+2. **Protect privileged accounts** — Add admin accounts to [Protected Users Group](https://learn.microsoft.com/en-us/windows-server/security/credentials-protection-and-management/protected-users-security-group)
+3. **Start with Tier 0** — Block NTLM on PAWs and management servers first
+4. **Remediate applications** — Fix SPN issues, reconfigure apps from NTLM to Negotiate
+5. **Block outbound** — Set _Outgoing NTLM traffic_ = Deny all (with exceptions as needed)
+6. **Block inbound** — Set _Incoming NTLM traffic_ = Deny all domain accounts
+7. **Block domain-wide** — Set _NTLM auth in this domain_ = Deny all (final goal)
+8. **Monitor** — Watch for 4001-4006 block events and 4625 failures with SubStatus `0xC0000418`
+
+> For the complete walkthrough see [Active Directory Hardening Series – Part 8 – Disabling NTLM](https://techcommunity.microsoft.com/blog/coreinfrastructureandsecurityblog/active-directory-hardening-series---part-8-%E2%80%93-disabling-ntlm/4485782).
+
 ## Troubleshooting
 
 **"No events were found"**
@@ -463,6 +678,8 @@ The project includes a comprehensive Pester test suite with 100+ tests covering:
 
 - **XPath filter generation** — default behavior, NTLMv1 filtering, null session exclusion, time range filters, failed logon inclusion, structural validation
 - **Event-to-object conversion** — field mapping for 4624 and 4625 events, impersonation level translation, Negotiate→NTLM fallback detection, TargetLogonId extraction, pipeline input, output object shape
+- **NTLM Operational events** — `Build-NtlmOperationalXPathFilter` time range filters, `Convert-NtlmOperationalEventToObject` field mapping for 8001-8006/4001-4006, event type classification, pipeline input
+- **NTLM Audit Configuration** — `Test-NtlmAuditConfiguration` registry reading, policy name mapping, IsRecommended evaluation, output object shape
 - **Privileged logon correlation** — `Get-PrivilegedLogonLookup` time-range queries, `Merge-PrivilegedLogonData` property injection, IsPrivileged/PrivilegeList field mapping, handling of no matching 4672 events
 - **Failed logon (4625) mapping** — shifted property indices, Status/FailureReason/SubStatus extraction, mixed event type pipeline
 - **Script parameters** — type checks, default values, validation rules, CmdletBinding support
@@ -479,6 +696,9 @@ Invoke-Pester -Path .\Tests\Get-NtlmLogonEvents.Tests.ps1 -Output Detailed
 
 | Version | Date | Changes |
 |---|---|---|
+| 4.0 | 2026-02-26 | **Breaking change:** Refactored to proper PowerShell parameter sets (`Default`, `ComputerName`, `AuditConfig`, `AuditConfigComputerName`); `-Target` now uses `[ValidateSet('Localhost', 'DCs', 'Forest')]` (default `Localhost`); new `-ComputerName` (`String[]`) parameter replaces `-Target <hostname>` for querying specific remote hosts; `-CheckAuditConfig` is mandatory in its own parameter sets; event-only parameters restricted to event query sets; `-Domain` restricted to Target-based sets |
+| 3.3 | 2026-02-26 | Added `-Target Forest` to query all domain controllers across every domain in the AD forest; enumerates domains via `Get-ADForest` and collects DCs from each |
+| 3.2 | 2026-02-26 | Added `-CheckAuditConfig` switch to verify NTLM audit/restriction GPO settings; `-IncludeNtlmOperationalLog` switch to query NTLM Operational log (events 8001-8006 audit + 4001-4006 block); `Build-NtlmOperationalXPathFilter`, `Convert-NtlmOperationalEventToObject`, and `Test-NtlmAuditConfiguration` helper functions; NTLM Event ID Reference, Audit GPO Settings Reference, and Remediation Guide in README; based on Microsoft's [AD Hardening Series – Part 8](https://techcommunity.microsoft.com/blog/coreinfrastructureandsecurityblog/active-directory-hardening-series---part-8-%E2%80%93-disabling-ntlm/4485782) |
 | 3.1 | 2026-02-25 | Added `-CorrelatePrivileged` switch for Event ID 4672 correlation; `TargetLogonId`, `IsPrivileged`, and `PrivilegeList` output fields; `Get-PrivilegedLogonLookup` and `Merge-PrivilegedLogonData` helper functions |
 | 3.0 | 2026-02-25 | Added `-IncludeFailedLogons` switch for Event ID 4625; `-Domain` parameter for multi-domain/forest DC queries; `AuthenticationPackageName` and `LogonProcessName` output fields to identify Negotiate→NTLM fallbacks; EventId/Status/FailureReason/SubStatus fields; separate property mapping for 4624 vs 4625 layouts |
 | 2.1 | 2023-05-25 | Fixed parameter splatting for optional DateTime parameters; relaxed pipeline type constraint for testability; added comprehensive Pester test suite (60 tests) |
@@ -500,3 +720,7 @@ This project is licensed under the MIT License. See the [LICENSE](LICENSE) file 
 
 - [Microsoft Security Auditing Reference](https://www.microsoft.com/en-us/download/details.aspx?id=52630)
 - [TechNet: The Most Misunderstood Windows Security Setting of All Time](http://technet.microsoft.com/en-us/magazine/2006.08.securitywatch.aspx)
+- [Active Directory Hardening Series – Part 8 – Disabling NTLM](https://techcommunity.microsoft.com/blog/coreinfrastructureandsecurityblog/active-directory-hardening-series---part-8-%E2%80%93-disabling-ntlm/4485782) by Jerry Devore
+- [Overview of NTLM auditing enhancements in Windows 11 24H2 and Windows Server 2025](https://support.microsoft.com/en-us/topic/overview-of-ntlm-auditing-enhancements-in-windows-11-version-24h2-and-windows-server-2025-b7ead732-6fc5-46a3-a943-27a4571d9e7b)
+- [The Evolution of Windows Authentication](https://techcommunity.microsoft.com/blog/windows-itpro-blog/the-evolution-of-windows-authentication/3926848)
+- [Auditing and restricting NTLM usage guide](https://learn.microsoft.com/en-us/previous-versions/windows/it-pro/windows-server-2008-r2-and-2008/jj865674(v=ws.10))

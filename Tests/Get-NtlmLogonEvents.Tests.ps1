@@ -655,6 +655,20 @@ Describe 'Get-NtlmLogonEvents.ps1 Script Parameters' {
             $command.Parameters['Target'].ParameterType.Name | Should -Be 'String'
         }
 
+        It 'Should have Target parameter with ValidateSet Localhost, DCs, Forest' {
+            $validateSet = $command.Parameters['Target'].Attributes |
+                Where-Object { $_ -is [System.Management.Automation.ValidateSetAttribute] }
+            $validateSet | Should -Not -BeNullOrEmpty
+            $validateSet.ValidValues | Should -Contain 'Localhost'
+            $validateSet.ValidValues | Should -Contain 'DCs'
+            $validateSet.ValidValues | Should -Contain 'Forest'
+            $validateSet.ValidValues | Should -HaveCount 3
+        }
+
+        It 'Should have a ComputerName parameter of type String[]' {
+            $command.Parameters['ComputerName'].ParameterType.Name | Should -Be 'String[]'
+        }
+
         It 'Should have ExcludeNullSessions as a switch' {
             $command.Parameters['ExcludeNullSessions'].SwitchParameter | Should -BeTrue
         }
@@ -669,6 +683,14 @@ Describe 'Get-NtlmLogonEvents.ps1 Script Parameters' {
 
         It 'Should have CorrelatePrivileged as a switch' {
             $command.Parameters['CorrelatePrivileged'].SwitchParameter | Should -BeTrue
+        }
+
+        It 'Should have CheckAuditConfig as a switch' {
+            $command.Parameters['CheckAuditConfig'].SwitchParameter | Should -BeTrue
+        }
+
+        It 'Should have IncludeNtlmOperationalLog as a switch' {
+            $command.Parameters['IncludeNtlmOperationalLog'].SwitchParameter | Should -BeTrue
         }
 
         It 'Should have Domain parameter of type String' {
@@ -703,8 +725,63 @@ Describe 'Get-NtlmLogonEvents.ps1 Script Parameters' {
             { & $scriptPath -NumEvents -5 } | Should -Throw
         }
 
-        It 'Should reject empty Target string' {
-            { & $scriptPath -Target '' } | Should -Throw
+        It 'Should reject invalid Target values' {
+            { & $scriptPath -Target 'server.contoso.com' } | Should -Throw
+        }
+    }
+
+    Context 'Parameter sets' {
+        It 'Should have Default as the default parameter set' {
+            $cmdletBinding = $command.ScriptBlock.Attributes |
+                Where-Object { $_ -is [System.Management.Automation.CmdletBindingAttribute] }
+            $cmdletBinding.DefaultParameterSetName | Should -Be 'Default'
+        }
+
+        It 'Should have ComputerName mandatory in the ComputerName parameter set' {
+            $paramAttrs = $command.Parameters['ComputerName'].Attributes |
+                Where-Object { $_ -is [System.Management.Automation.ParameterAttribute] -and $_.ParameterSetName -eq 'ComputerName' }
+            $paramAttrs.Mandatory | Should -BeTrue
+        }
+
+        It 'Should have ComputerName mandatory in the AuditConfigComputerName parameter set' {
+            $paramAttrs = $command.Parameters['ComputerName'].Attributes |
+                Where-Object { $_ -is [System.Management.Automation.ParameterAttribute] -and $_.ParameterSetName -eq 'AuditConfigComputerName' }
+            $paramAttrs.Mandatory | Should -BeTrue
+        }
+
+        It 'Should have CheckAuditConfig mandatory in the AuditConfig parameter set' {
+            $paramAttrs = $command.Parameters['CheckAuditConfig'].Attributes |
+                Where-Object { $_ -is [System.Management.Automation.ParameterAttribute] -and $_.ParameterSetName -eq 'AuditConfig' }
+            $paramAttrs.Mandatory | Should -BeTrue
+        }
+
+        It 'Should have CheckAuditConfig mandatory in the AuditConfigComputerName parameter set' {
+            $paramAttrs = $command.Parameters['CheckAuditConfig'].Attributes |
+                Where-Object { $_ -is [System.Management.Automation.ParameterAttribute] -and $_.ParameterSetName -eq 'AuditConfigComputerName' }
+            $paramAttrs.Mandatory | Should -BeTrue
+        }
+
+        It 'Should NOT have event-only parameters in AuditConfig sets' {
+            $eventOnlyParams = @('NumEvents', 'ExcludeNullSessions', 'OnlyNTLMv1',
+                                 'IncludeFailedLogons', 'CorrelatePrivileged',
+                                 'IncludeNtlmOperationalLog', 'StartTime', 'EndTime')
+            foreach ($paramName in $eventOnlyParams) {
+                $paramSets = $command.Parameters[$paramName].Attributes |
+                    Where-Object { $_ -is [System.Management.Automation.ParameterAttribute] } |
+                    ForEach-Object { $_.ParameterSetName }
+                $paramSets | Should -Not -Contain 'AuditConfig' -Because "$paramName should not be in AuditConfig set"
+                $paramSets | Should -Not -Contain 'AuditConfigComputerName' -Because "$paramName should not be in AuditConfigComputerName set"
+            }
+        }
+
+        It 'Should have Domain only in Default and AuditConfig parameter sets' {
+            $paramSets = $command.Parameters['Domain'].Attributes |
+                Where-Object { $_ -is [System.Management.Automation.ParameterAttribute] } |
+                ForEach-Object { $_.ParameterSetName }
+            $paramSets | Should -Contain 'Default'
+            $paramSets | Should -Contain 'AuditConfig'
+            $paramSets | Should -Not -Contain 'ComputerName'
+            $paramSets | Should -Not -Contain 'AuditConfigComputerName'
         }
     }
 }
@@ -799,6 +876,20 @@ Describe 'Get-NtlmLogonEvents.ps1 Script Execution (mocked)' {
             $errors | Should -Not -BeNullOrEmpty
         }
     }
+
+    Context 'Forest target without ActiveDirectory module' {
+        BeforeEach {
+            Mock Import-Module { throw 'Module not found' } -ParameterFilter {
+                $Name -eq 'ActiveDirectory'
+            }
+        }
+
+        It 'Should emit an error if ActiveDirectory module is not available for Forest target' {
+            $result = & $scriptPath -Target Forest 2>&1
+            $errors = $result | Where-Object { $_ -is [System.Management.Automation.ErrorRecord] }
+            $errors | Should -Not -BeNullOrEmpty
+        }
+    }
 }
 
 Describe 'Script file quality' {
@@ -813,7 +904,7 @@ Describe 'Script file quality' {
     }
 
     It 'Should have CmdletBinding attribute' {
-        $scriptContent | Should -Match '\[CmdletBinding\(\)\]'
+        $scriptContent | Should -Match '\[CmdletBinding\('
     }
 
     It 'Should have comment-based help with SYNOPSIS' {
@@ -839,6 +930,9 @@ Describe 'Script file quality' {
         $scriptContent | Should -Match '\.PARAMETER StartTime'
         $scriptContent | Should -Match '\.PARAMETER EndTime'
         $scriptContent | Should -Match '\.PARAMETER Credential'
+        $scriptContent | Should -Match '\.PARAMETER CheckAuditConfig'
+        $scriptContent | Should -Match '\.PARAMETER IncludeNtlmOperationalLog'
+        $scriptContent | Should -Match '\.PARAMETER ComputerName'
     }
 
     It 'Should NOT contain the old -IncludeAllNtlm parameter' {
@@ -866,6 +960,334 @@ Describe 'Script file quality' {
         $errors = $null
         [System.Management.Automation.Language.Parser]::ParseFile($scriptPath, [ref]$tokens, [ref]$errors)
         $errors | Should -HaveCount 0
+    }
+}
+
+Describe 'Build-NtlmOperationalXPathFilter' {
+
+    Context 'Default behavior (all NTLM operational events)' {
+        It 'Should include all audit event IDs (8001-8006)' {
+            $filter = Build-NtlmOperationalXPathFilter
+            $filter | Should -Match 'EventID=8001'
+            $filter | Should -Match 'EventID=8002'
+            $filter | Should -Match 'EventID=8003'
+            $filter | Should -Match 'EventID=8004'
+            $filter | Should -Match 'EventID=8005'
+            $filter | Should -Match 'EventID=8006'
+        }
+
+        It 'Should include all block event IDs (4001-4006)' {
+            $filter = Build-NtlmOperationalXPathFilter
+            $filter | Should -Match 'EventID=4001'
+            $filter | Should -Match 'EventID=4002'
+            $filter | Should -Match 'EventID=4003'
+            $filter | Should -Match 'EventID=4004'
+            $filter | Should -Match 'EventID=4005'
+            $filter | Should -Match 'EventID=4006'
+        }
+
+        It 'Should NOT include time filters by default' {
+            $filter = Build-NtlmOperationalXPathFilter
+            $filter | Should -Not -Match 'TimeCreated'
+        }
+    }
+
+    Context '-StartTime parameter' {
+        It 'Should add TimeCreated >= filter' {
+            $filter = Build-NtlmOperationalXPathFilter -StartTime ([datetime]'2026-01-01')
+            $filter | Should -Match "TimeCreated\[@SystemTime>="
+        }
+    }
+
+    Context '-EndTime parameter' {
+        It 'Should add TimeCreated <= filter' {
+            $filter = Build-NtlmOperationalXPathFilter -EndTime ([datetime]'2026-02-28')
+            $filter | Should -Match "TimeCreated\[@SystemTime<="
+        }
+    }
+
+    Context 'StartTime and EndTime combined' {
+        It 'Should include both time filters' {
+            $filter = Build-NtlmOperationalXPathFilter -StartTime ([datetime]'2026-01-01') -EndTime ([datetime]'2026-02-01')
+            $filter | Should -Match 'SystemTime>='
+            $filter | Should -Match 'SystemTime<='
+        }
+    }
+
+    Context 'XPath structure validation' {
+        It 'Should wrap in *[System[...]]' {
+            $filter = Build-NtlmOperationalXPathFilter
+            $filter | Should -Match '\*\[System\['
+        }
+
+        It 'Should use "or" between event IDs' {
+            $filter = Build-NtlmOperationalXPathFilter
+            $filter | Should -Match ' or '
+        }
+    }
+}
+
+Describe 'Convert-NtlmOperationalEventToObject' {
+
+    BeforeAll {
+        # Helper: create a mock NTLM operational event
+        function New-MockNtlmOpEvent {
+            param(
+                [int]$EventId = 8001,
+                [PSObject[]]$Properties,
+                [datetime]$TimeCreated = (Get-Date)
+            )
+            $mockEvent = [PSCustomObject]@{
+                Id          = $EventId
+                TimeCreated = $TimeCreated
+                Properties  = $Properties
+            }
+            return $mockEvent
+        }
+    }
+
+    Context 'Event 8001 (Client outgoing audit)' {
+        It 'Should map TargetName from Properties[0]' {
+            $props = @(
+                [PSCustomObject]@{ Value = 'HTTP/server.contoso.local' }
+                [PSCustomObject]@{ Value = 'jsmith' }
+                [PSCustomObject]@{ Value = 'CONTOSO' }
+                [PSCustomObject]@{ Value = 'msedge.exe' }
+                [PSCustomObject]@{ Value = 1234 }
+            )
+            $event = New-MockNtlmOpEvent -EventId 8001 -Properties $props
+            $result = Convert-NtlmOperationalEventToObject -Event $event -ComputerName 'WKS01'
+            $result.TargetName | Should -Be 'HTTP/server.contoso.local'
+            $result.UserName | Should -Be 'jsmith'
+            $result.DomainName | Should -Be 'CONTOSO'
+            $result.ProcessName | Should -Be 'msedge.exe'
+            $result.ProcessId | Should -Be 1234
+            $result.EventType | Should -Be 'Audit'
+            $result.EventId | Should -Be 8001
+        }
+
+        It 'Should set WorkstationName and SecureChannelName to null' {
+            $props = @(
+                [PSCustomObject]@{ Value = 'HTTP/server' }
+                [PSCustomObject]@{ Value = 'user1' }
+                [PSCustomObject]@{ Value = 'DOMAIN' }
+                [PSCustomObject]@{ Value = 'app.exe' }
+                [PSCustomObject]@{ Value = 5678 }
+            )
+            $event = New-MockNtlmOpEvent -EventId 8001 -Properties $props
+            $result = Convert-NtlmOperationalEventToObject -Event $event -ComputerName 'WKS01'
+            $result.WorkstationName | Should -BeNullOrEmpty
+            $result.SecureChannelName | Should -BeNullOrEmpty
+        }
+
+        It 'Should handle events with fewer than 5 properties gracefully' {
+            $props = @(
+                [PSCustomObject]@{ Value = 'HTTP/server' }
+                [PSCustomObject]@{ Value = 'user1' }
+                [PSCustomObject]@{ Value = 'DOMAIN' }
+            )
+            $event = New-MockNtlmOpEvent -EventId 8001 -Properties $props
+            $result = Convert-NtlmOperationalEventToObject -Event $event -ComputerName 'WKS01'
+            $result.ProcessName | Should -BeNullOrEmpty
+            $result.ProcessId | Should -BeNullOrEmpty
+        }
+    }
+
+    Context 'Event 8003 (Server incoming domain account)' {
+        It 'Should map UserName from Properties[0] and WorkstationName from Properties[2]' {
+            $props = @(
+                [PSCustomObject]@{ Value = 'joe_user' }
+                [PSCustomObject]@{ Value = 'CONTOSO' }
+                [PSCustomObject]@{ Value = 'CONTOSO-PC1' }
+                [PSCustomObject]@{ Value = 'w3wp.exe' }
+                [PSCustomObject]@{ Value = 9876 }
+            )
+            $event = New-MockNtlmOpEvent -EventId 8003 -Properties $props
+            $result = Convert-NtlmOperationalEventToObject -Event $event -ComputerName 'FS01'
+            $result.UserName | Should -Be 'joe_user'
+            $result.DomainName | Should -Be 'CONTOSO'
+            $result.WorkstationName | Should -Be 'CONTOSO-PC1'
+            $result.ProcessName | Should -Be 'w3wp.exe'
+            $result.TargetName | Should -BeNullOrEmpty
+            $result.SecureChannelName | Should -BeNullOrEmpty
+            $result.EventType | Should -Be 'Audit'
+        }
+    }
+
+    Context 'Event 8004 (DC credential validation)' {
+        It 'Should map SecureChannelName from Properties[3]' {
+            $props = @(
+                [PSCustomObject]@{ Value = 'joe_user' }
+                [PSCustomObject]@{ Value = 'CONTOSO' }
+                [PSCustomObject]@{ Value = 'CONTOSO-PC1' }
+                [PSCustomObject]@{ Value = 'CONTOSO-FS2' }
+            )
+            $event = New-MockNtlmOpEvent -EventId 8004 -Properties $props
+            $result = Convert-NtlmOperationalEventToObject -Event $event -ComputerName 'DC01'
+            $result.UserName | Should -Be 'joe_user'
+            $result.WorkstationName | Should -Be 'CONTOSO-PC1'
+            $result.SecureChannelName | Should -Be 'CONTOSO-FS2'
+            $result.ProcessName | Should -BeNullOrEmpty
+            $result.ProcessId | Should -BeNullOrEmpty
+            $result.EventType | Should -Be 'Audit'
+        }
+    }
+
+    Context 'Block events (4001-4006)' {
+        It 'Should set EventType to Block for event 4001' {
+            $props = @(
+                [PSCustomObject]@{ Value = 'HTTP/server' }
+                [PSCustomObject]@{ Value = 'user1' }
+                [PSCustomObject]@{ Value = 'DOMAIN' }
+                [PSCustomObject]@{ Value = 'app.exe' }
+                [PSCustomObject]@{ Value = 1111 }
+            )
+            $event = New-MockNtlmOpEvent -EventId 4001 -Properties $props
+            $result = Convert-NtlmOperationalEventToObject -Event $event -ComputerName 'WKS01'
+            $result.EventType | Should -Be 'Block'
+            $result.EventId | Should -Be 4001
+            $result.TargetName | Should -Be 'HTTP/server'
+        }
+
+        It 'Should use same layout as 8003 for event 4003' {
+            $props = @(
+                [PSCustomObject]@{ Value = 'user2' }
+                [PSCustomObject]@{ Value = 'CORP' }
+                [PSCustomObject]@{ Value = 'CLIENT-PC' }
+                [PSCustomObject]@{ Value = 'svchost.exe' }
+                [PSCustomObject]@{ Value = 2222 }
+            )
+            $event = New-MockNtlmOpEvent -EventId 4003 -Properties $props
+            $result = Convert-NtlmOperationalEventToObject -Event $event -ComputerName 'SRV01'
+            $result.EventType | Should -Be 'Block'
+            $result.UserName | Should -Be 'user2'
+            $result.WorkstationName | Should -Be 'CLIENT-PC'
+        }
+
+        It 'Should use same layout as 8004 for event 4004' {
+            $props = @(
+                [PSCustomObject]@{ Value = 'admin' }
+                [PSCustomObject]@{ Value = 'CONTOSO' }
+                [PSCustomObject]@{ Value = 'WKS01' }
+                [PSCustomObject]@{ Value = 'FS01' }
+            )
+            $event = New-MockNtlmOpEvent -EventId 4004 -Properties $props
+            $result = Convert-NtlmOperationalEventToObject -Event $event -ComputerName 'DC01'
+            $result.EventType | Should -Be 'Block'
+            $result.SecureChannelName | Should -Be 'FS01'
+        }
+    }
+
+    Context 'Output object properties' {
+        It 'Should have all expected properties' {
+            $props = @(
+                [PSCustomObject]@{ Value = 'HTTP/server' }
+                [PSCustomObject]@{ Value = 'user1' }
+                [PSCustomObject]@{ Value = 'DOMAIN' }
+                [PSCustomObject]@{ Value = 'app.exe' }
+                [PSCustomObject]@{ Value = 1234 }
+            )
+            $event = New-MockNtlmOpEvent -EventId 8001 -Properties $props
+            $result = Convert-NtlmOperationalEventToObject -Event $event -ComputerName 'SRV01'
+
+            $expectedProps = @(
+                'EventId', 'EventType', 'EventDescription', 'Time',
+                'UserName', 'DomainName', 'TargetName', 'WorkstationName',
+                'SecureChannelName', 'ProcessName', 'ProcessId', 'ComputerName'
+            )
+            foreach ($prop in $expectedProps) {
+                $result.PSObject.Properties.Name | Should -Contain $prop
+            }
+        }
+
+        It 'Should have PSTypeName NtlmOperationalEvent' {
+            $props = @(
+                [PSCustomObject]@{ Value = 'HTTP/server' }
+                [PSCustomObject]@{ Value = 'user1' }
+                [PSCustomObject]@{ Value = 'DOMAIN' }
+                [PSCustomObject]@{ Value = 'app.exe' }
+                [PSCustomObject]@{ Value = 1234 }
+            )
+            $event = New-MockNtlmOpEvent -EventId 8001 -Properties $props
+            $result = Convert-NtlmOperationalEventToObject -Event $event -ComputerName 'SRV01'
+            $result.PSObject.TypeNames | Should -Contain 'NtlmOperationalEvent'
+        }
+
+        It 'Should have EventDescription populated' {
+            $props = @(
+                [PSCustomObject]@{ Value = 'HTTP/server' }
+                [PSCustomObject]@{ Value = 'user1' }
+                [PSCustomObject]@{ Value = 'DOMAIN' }
+                [PSCustomObject]@{ Value = 'app.exe' }
+                [PSCustomObject]@{ Value = 1234 }
+            )
+            $event = New-MockNtlmOpEvent -EventId 8001 -Properties $props
+            $result = Convert-NtlmOperationalEventToObject -Event $event -ComputerName 'SRV01'
+            $result.EventDescription | Should -Be 'Outgoing NTLM authentication (client-side)'
+        }
+    }
+
+    Context 'Pipeline input' {
+        It 'Should process multiple events via pipeline' {
+            $events = @(
+                (New-MockNtlmOpEvent -EventId 8001 -Properties @(
+                    [PSCustomObject]@{ Value = 'HTTP/srv1' }
+                    [PSCustomObject]@{ Value = 'user1' }
+                    [PSCustomObject]@{ Value = 'DOM' }
+                ))
+                (New-MockNtlmOpEvent -EventId 8003 -Properties @(
+                    [PSCustomObject]@{ Value = 'user2' }
+                    [PSCustomObject]@{ Value = 'DOM' }
+                    [PSCustomObject]@{ Value = 'PC1' }
+                ))
+            )
+            $results = $events | Convert-NtlmOperationalEventToObject -ComputerName 'SRV01'
+            $results | Should -HaveCount 2
+            $results[0].EventId | Should -Be 8001
+            $results[1].EventId | Should -Be 8003
+        }
+    }
+}
+
+Describe 'Test-NtlmAuditConfiguration' {
+
+    Context 'Registry reading' {
+        It 'Should return NtlmAuditConfig objects' {
+            # Mock Get-ItemProperty to simulate registry values
+            Mock Get-ItemProperty { throw 'Not found' }
+            $results = Test-NtlmAuditConfiguration
+            $results | Should -Not -BeNullOrEmpty
+            $results[0].PSObject.TypeNames | Should -Contain 'NtlmAuditConfig'
+        }
+
+        It 'Should return at least 5 policy entries' {
+            Mock Get-ItemProperty { throw 'Not found' }
+            $results = @(Test-NtlmAuditConfiguration)
+            $results.Count | Should -BeGreaterOrEqual 5
+        }
+
+        It 'Should show Not configured when registry values are missing' {
+            Mock Get-ItemProperty { throw 'Not found' }
+            $results = Test-NtlmAuditConfiguration
+            $results | Where-Object Setting -eq 'Not configured' | Should -Not -BeNullOrEmpty
+        }
+
+        It 'Should include PolicyName, Setting, Recommended, and IsRecommended properties' {
+            Mock Get-ItemProperty { throw 'Not found' }
+            $results = Test-NtlmAuditConfiguration
+            $first = $results[0]
+            $first.PSObject.Properties.Name | Should -Contain 'PolicyName'
+            $first.PSObject.Properties.Name | Should -Contain 'Setting'
+            $first.PSObject.Properties.Name | Should -Contain 'Recommended'
+            $first.PSObject.Properties.Name | Should -Contain 'IsRecommended'
+            $first.PSObject.Properties.Name | Should -Contain 'ComputerName'
+        }
+
+        It 'Should set ComputerName to local host name' {
+            Mock Get-ItemProperty { throw 'Not found' }
+            $results = Test-NtlmAuditConfiguration
+            $results[0].ComputerName | Should -Be $env:COMPUTERNAME
+        }
     }
 }
 
