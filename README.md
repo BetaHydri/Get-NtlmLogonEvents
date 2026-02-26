@@ -667,7 +667,7 @@ Once you’ve identified NTLM usage with this script, investigate why NTLM was s
 | **IP-based Access** | Client connected by IP (Kerberos needs DNS hostname) | 8001 events with IP in TargetName; 4020 events on 24H2+ | Use DNS names; or set `TryIPSPN` registry + register IP SPNs |
 | **App Hardcoded NTLM** | Application explicitly requests NTLM instead of Negotiate | 8001 events showing the process; `AuthenticationPackageName=NTLM` in 4624 | Reconfigure app to use Negotiate; contact vendor |
 | **Negotiate Fallback** | Kerberos tried but failed; NTLM used via SPNEGO | `AuthenticationPackageName=Negotiate` + `LogonProcessName=Negotiate` in 4624 | Fix SPNs, DNS, clock skew, or trust issues |
-| **DC Connectivity** | Client can’t reach DC in resource domain for Kerberos | Multi-domain environments with network segmentation | KDC Proxy; IAKerb (future) |
+| **DC Connectivity** | Client can't reach DC in resource domain for Kerberos | Multi-domain environments with network segmentation | [KDC Proxy](https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-kkdcp) to tunnel Kerberos over HTTPS; [Azure AD App Proxy as KDC Proxy](https://learn.microsoft.com/en-us/entra/identity/app-proxy/application-proxy-configure-kdc-proxy) for Azure AD-joined clients; IAKerb (future) |
 | **Local Accounts** | Local account auth always uses NTLM | 8002 events; local account in 4624 | Use domain accounts; LocalKDC (Server 2025) |
 | **RPC Endpoint Mapper** | GPO forces NTLM for RPC EPM authentication | 8001 events from System account for RPC | Disable _"Enable RPC Endpoint Mapper Client Authentication"_ GPO |
 | **Loopback Auth** | System account connecting to itself | 8001 events from SYSTEM on same machine | Expected behavior; exempt if needed |
@@ -728,6 +728,7 @@ Invoke-Pester -Path .\Tests\Get-NtlmLogonEvents.Tests.ps1 -Output Detailed
 
 | Version | Date | Changes |
 |---|---|---|
+| 4.1 | 2026-02-26 | Improved error handling for Azure AD-joined clients using `-Target DCs` or `-Target Forest` without line-of-sight to a domain controller; added KDC Proxy documentation references to remediation guide and acknowledgments |
 | 4.0 | 2026-02-26 | **Breaking change:** Refactored to proper PowerShell parameter sets (`Default`, `ComputerName`, `AuditConfig`, `AuditConfigComputerName`); `-Target` now uses `[ValidateSet('Localhost', 'DCs', 'Forest')]` (default `Localhost`); new `-ComputerName` (`String[]`) parameter replaces `-Target <hostname>` for querying specific remote hosts; `-CheckAuditConfig` is mandatory in its own parameter sets; event-only parameters restricted to event query sets; `-Domain` restricted to Target-based sets |
 | 3.3 | 2026-02-26 | Added `-Target Forest` to query all domain controllers across every domain in the AD forest; enumerates domains via `Get-ADForest` and collects DCs from each |
 | 3.2 | 2026-02-26 | Added `-CheckAuditConfig` switch to verify NTLM audit/restriction GPO settings; `-IncludeNtlmOperationalLog` switch to query NTLM Operational log (events 8001-8006 audit + 4001-4006 block); `Build-NtlmOperationalXPathFilter`, `Convert-NtlmOperationalEventToObject`, and `Test-NtlmAuditConfiguration` helper functions; NTLM Event ID Reference, Audit GPO Settings Reference, and Remediation Guide in README; based on Microsoft's [AD Hardening Series – Part 8](https://techcommunity.microsoft.com/blog/coreinfrastructureandsecurityblog/active-directory-hardening-series---part-8-%E2%80%93-disabling-ntlm/4485782) |
@@ -756,3 +757,7 @@ This project is licensed under the MIT License. See the [LICENSE](LICENSE) file 
 - [Overview of NTLM auditing enhancements in Windows 11 24H2 and Windows Server 2025](https://support.microsoft.com/en-us/topic/overview-of-ntlm-auditing-enhancements-in-windows-11-version-24h2-and-windows-server-2025-b7ead732-6fc5-46a3-a943-27a4571d9e7b)
 - [The Evolution of Windows Authentication](https://techcommunity.microsoft.com/blog/windows-itpro-blog/the-evolution-of-windows-authentication/3926848)
 - [Auditing and restricting NTLM usage guide](https://learn.microsoft.com/en-us/previous-versions/windows/it-pro/windows-server-2008-r2-and-2008/jj865674(v=ws.10))
+- [KDC Proxy Server (MS-KKDCP) – Protocol specification](https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-kkdcp)
+- [Configuring Kerberos KDC Proxy on Windows Server](https://learn.microsoft.com/en-us/windows-server/security/kerberos/kdc-proxy-server)
+- [Configure Azure AD Application Proxy as KDC Proxy](https://learn.microsoft.com/en-us/entra/identity/app-proxy/application-proxy-configure-kdc-proxy)
+- [Kerberos authentication for Azure AD-joined devices (Hybrid join KDC Proxy)](https://learn.microsoft.com/en-us/entra/identity/devices/howto-hybrid-join-kdc-proxy)

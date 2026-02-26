@@ -220,7 +220,7 @@
 
     .NOTES
     Author:  Jan Tiedemann
-    Version: 4.0
+    Version: 4.1
     Requires: PowerShell 5.1+, elevated privileges to read Security log.
     For remote targets: WinRM must be enabled (winrm quickconfig).
     For DCs/Forest target: ActiveDirectory PowerShell module required.
