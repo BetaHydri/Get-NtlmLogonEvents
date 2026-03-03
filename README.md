@@ -68,7 +68,7 @@ cd Get-NtlmLogonEvents
 | `-ComputerName` | String[] | — | ComputerName, AuditConfigComputerName | One or more specific remote host(s) to query. Mandatory in its parameter sets. |
 | `-NumEvents` | Int | `30` | Default, ComputerName | Maximum number of events to return per host |
 | `-OnlyNTLMv1` | Switch | Off | Default, ComputerName | Return only NTLMv1 events (default: all NTLM versions) |
-| `-ExcludeNullSessions` | Switch | Off | Default, ComputerName | Filter out ANONYMOUS LOGON (null session) events |
+| `-ExcludeNullSessions` | Switch | Off | Default, ComputerName | Filter out ANONYMOUS LOGON (null session) events from Security log and null-credential events from NTLM Operational log |
 | `-IncludeFailedLogons` | Switch | Off | Default, ComputerName | Also query failed logon attempts (Event ID 4625) |
 | `-CorrelatePrivileged` | Switch | Off | Default, ComputerName | Correlate with Event ID 4672 to identify privileged NTLM logon sessions |
 | `-IncludeNtlmOperationalLog` | Switch | Off | Default, ComputerName | Also query `Microsoft-Windows-NTLM/Operational` log (events 8001-8006 audit + 4001-4006 block) |
@@ -728,6 +728,7 @@ Invoke-Pester -Path .\Tests\Get-NtlmLogonEvents.Tests.ps1 -Output Detailed
 
 | Version | Date | Changes |
 |---|---|---|
+| 4.4 | 2026-03-03 | `-ExcludeNullSessions` now also filters NTLM Operational log events (8001-8006/4001-4006) where UserName is empty or `(NULL)` — i.e. anonymous/null-credential NTLM probes (e.g. SMB null sessions, DFS referrals, GPO processing by IP). Previously the switch only applied to Security log events (4624/4625). Updated help text accordingly. |
 | 4.3 | 2026-03-03 | Fixed misleading `Write-Error` when no NTLM events exist on domain controllers — now emits a clear `Write-Warning` instead (matching localhost/remote-host behavior). Fixed `Cannot index into a null array` crash in NTLM Operational log parsing when event `Properties` collection is null or empty — added null guards in both `Convert-NtlmOperationalEventToObject` and the remote script block, with safe per-index bounds checks. |
 | 4.2 | 2026-02-26 | `-Target Forest` now queries each domain's DCs separately instead of batching all forest DCs into a single `Invoke-Command` call; if one domain's DCs are unreachable (e.g. WinRM/DNS failure), the script emits a warning and continues with the remaining domains instead of failing entirely. Applies to event queries, NTLM operational log queries, and `-CheckAuditConfig`. |
 | 4.1 | 2026-02-26 | Improved error handling for Azure AD-joined clients using `-Target DCs` or `-Target Forest` without line-of-sight to a domain controller; added KDC Proxy documentation references to remediation guide and acknowledgments |

@@ -165,7 +165,9 @@
     Not applicable when using -Target Forest (all domains are enumerated automatically).
 
     .PARAMETER ExcludeNullSessions
-    When specified, filters out ANONYMOUS LOGON (null session) events.
+    When specified, filters out ANONYMOUS LOGON (null session) events from the Security log
+    (Event ID 4624/4625) and null-credential events from the NTLM Operational log
+    (events where UserName is empty or '(NULL)').
     This makes it easier to identify real user accounts using NTLM.
 
     .PARAMETER OnlyNTLMv1
@@ -207,8 +209,8 @@
     events (8001-8006) and block events (4001-4006). These events capture process-level detail
     that Security log events (4624/4625) lack, including the process name, target server SPN,
     and secure channel name. Requires that NTLM auditing policies are configured via GPO
-    (see -CheckAuditConfig). Note: -OnlyNTLMv1 and -ExcludeNullSessions do not apply to
-    operational log events.
+    (see -CheckAuditConfig). When -ExcludeNullSessions is also specified, null-credential
+    operational events (UserName empty or '(NULL)') are filtered out.
 
     .LINK
     TechNet - The Most Misunderstood Windows Security Setting of All Time
@@ -220,7 +222,7 @@
 
     .NOTES
     Author:  Jan Tiedemann
-    Version: 4.3
+    Version: 4.4
     Requires: PowerShell 5.1+, elevated privileges to read Security log.
     For remote targets: WinRM must be enabled (winrm quickconfig).
     For DCs/Forest target: ActiveDirectory PowerShell module required.
@@ -1300,8 +1302,13 @@ if ($Target -eq 'Localhost' -and -not $PSBoundParameters.ContainsKey('ComputerNa
   if ($IncludeNtlmOperationalLog) {
     Write-Verbose 'Querying Microsoft-Windows-NTLM/Operational log for NTLM audit/block events...'
     try {
-      Get-WinEvent -LogName 'Microsoft-Windows-NTLM/Operational' -MaxEvents $NumEvents -FilterXPath $ntlmOpFilter -ErrorAction Stop |
+      $ntlmOpEvents = Get-WinEvent -LogName 'Microsoft-Windows-NTLM/Operational' -MaxEvents $NumEvents -FilterXPath $ntlmOpFilter -ErrorAction Stop |
       Convert-NtlmOperationalEventToObject -ComputerName $env:COMPUTERNAME
+      if ($ExcludeNullSessions) {
+        $ntlmOpEvents | Where-Object { $_.UserName -and $_.UserName -ne '(NULL)' }
+      } else {
+        $ntlmOpEvents
+      }
     }
     catch {
       if ($_.Exception.Message -match 'No events were found') {
@@ -1372,8 +1379,13 @@ elseif ($Target -eq 'DCs') {
       $ntlmOpInvokeParams['Credential'] = $Credential
     }
     try {
-      Invoke-Command @ntlmOpInvokeParams |
+      $ntlmOpResults = Invoke-Command @ntlmOpInvokeParams |
       Select-Object $ntlmOpOutputProperties
+      if ($ExcludeNullSessions) {
+        $ntlmOpResults | Where-Object { $_.UserName -and $_.UserName -ne '(NULL)' }
+      } else {
+        $ntlmOpResults
+      }
     }
     catch {
       if ($_.Exception.Message -match 'No events were found') {
@@ -1452,8 +1464,13 @@ elseif ($Target -eq 'Forest') {
         $ntlmOpInvokeParams['Credential'] = $Credential
       }
       try {
-        Invoke-Command @ntlmOpInvokeParams |
+        $ntlmOpResults = Invoke-Command @ntlmOpInvokeParams |
         Select-Object $ntlmOpOutputProperties
+        if ($ExcludeNullSessions) {
+          $ntlmOpResults | Where-Object { $_.UserName -and $_.UserName -ne '(NULL)' }
+        } else {
+          $ntlmOpResults
+        }
       }
       catch {
         if ($_.Exception.Message -match 'No events were found') {
@@ -1499,8 +1516,13 @@ elseif ($PSBoundParameters.ContainsKey('ComputerName')) {
       $ntlmOpInvokeParams['Credential'] = $Credential
     }
     try {
-      Invoke-Command @ntlmOpInvokeParams |
+      $ntlmOpResults = Invoke-Command @ntlmOpInvokeParams |
       Select-Object $ntlmOpOutputProperties
+      if ($ExcludeNullSessions) {
+        $ntlmOpResults | Where-Object { $_.UserName -and $_.UserName -ne '(NULL)' }
+      } else {
+        $ntlmOpResults
+      }
     }
     catch {
       if ($_.Exception.Message -match 'No events were found') {
