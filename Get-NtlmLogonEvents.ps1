@@ -689,7 +689,7 @@ function Test-NtlmAuditConfiguration {
       ValueMap     = @{ 0 = 'Allow all'; 1 = 'Deny all domain accounts'; 2 = 'Deny all accounts' }
       Recommended  = 'Deny all domain accounts (final goal — configure only after auditing is complete)'
       RecTest      = { param($v) $null -ne $v -and [int]$v -ge 1 }
-      Scope        = 'All devices (with exceptions if needed)'
+      Scope        = 'All devices'
     }
     @{
       PolicyName   = 'Network security: Restrict NTLM: Audit NTLM authentication in this domain'
