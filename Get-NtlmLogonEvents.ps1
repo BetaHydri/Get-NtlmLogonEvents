@@ -1306,7 +1306,8 @@ if ($Target -eq 'Localhost' -and -not $PSBoundParameters.ContainsKey('ComputerNa
       Convert-NtlmOperationalEventToObject -ComputerName $env:COMPUTERNAME
       if ($ExcludeNullSessions) {
         $ntlmOpEvents | Where-Object { $_.UserName -and $_.UserName -ne '(NULL)' }
-      } else {
+      }
+      else {
         $ntlmOpEvents
       }
     }
@@ -1383,7 +1384,8 @@ elseif ($Target -eq 'DCs') {
       Select-Object $ntlmOpOutputProperties
       if ($ExcludeNullSessions) {
         $ntlmOpResults | Where-Object { $_.UserName -and $_.UserName -ne '(NULL)' }
-      } else {
+      }
+      else {
         $ntlmOpResults
       }
     }
@@ -1468,7 +1470,8 @@ elseif ($Target -eq 'Forest') {
         Select-Object $ntlmOpOutputProperties
         if ($ExcludeNullSessions) {
           $ntlmOpResults | Where-Object { $_.UserName -and $_.UserName -ne '(NULL)' }
-        } else {
+        }
+        else {
           $ntlmOpResults
         }
       }
@@ -1520,7 +1523,8 @@ elseif ($PSBoundParameters.ContainsKey('ComputerName')) {
       Select-Object $ntlmOpOutputProperties
       if ($ExcludeNullSessions) {
         $ntlmOpResults | Where-Object { $_.UserName -and $_.UserName -ne '(NULL)' }
-      } else {
+      }
+      else {
         $ntlmOpResults
       }
     }
