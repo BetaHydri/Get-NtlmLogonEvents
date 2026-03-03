@@ -1344,7 +1344,12 @@ elseif ($Target -eq 'DCs') {
     Select-Object $outputProperties
   }
   catch {
-    Write-Error "Failed to query domain controllers: $_"
+    if ($_.Exception.Message -match 'No events were found') {
+      Write-Warning "No matching $ntlmVersionLabel logon events found on domain controllers$domainLabel."
+    }
+    else {
+      Write-Error "Failed to query domain controllers: $_"
+    }
   }
 
   # NTLM Operational log on DCs
@@ -1419,7 +1424,12 @@ elseif ($Target -eq 'Forest') {
       Select-Object $outputProperties
     }
     catch {
-      Write-Warning "Failed to query DCs in domain '${dom}': $_"
+      if ($_.Exception.Message -match 'No events were found') {
+        Write-Warning "No matching $ntlmVersionLabel logon events found on DCs in domain '${dom}'."
+      }
+      else {
+        Write-Warning "Failed to query DCs in domain '${dom}': $_"
+      }
     }
 
     # NTLM Operational log per domain
