@@ -220,7 +220,7 @@
 
     .NOTES
     Author:  Jan Tiedemann
-    Version: 4.2
+    Version: 4.3
     Requires: PowerShell 5.1+, elevated privileges to read Security log.
     For remote targets: WinRM must be enabled (winrm quickconfig).
     For DCs/Forest target: ActiveDirectory PowerShell module required.
@@ -557,6 +557,11 @@ function Convert-NtlmOperationalEventToObject {
 
   process {
     $eventId = $Event.Id
+    $props = $Event.Properties
+    if (-not $props -or $props.Count -eq 0) {
+      Write-Warning "Skipping Event ID $eventId at $($Event.TimeCreated) — event Properties collection is empty or null."
+      return
+    }
     $isBlock = ($eventId -ge 4001 -and $eventId -le 4006)
     $eventType = if ($isBlock) { 'Block' } else { 'Audit' }
     # Map block event IDs to their audit counterparts for property layout matching
@@ -586,13 +591,13 @@ function Convert-NtlmOperationalEventToObject {
           EventType         = $eventType
           EventDescription  = $descMap[$eventId]
           Time              = $Event.TimeCreated
-          UserName          = $Event.Properties[1].Value
-          DomainName        = $Event.Properties[2].Value
-          TargetName        = $Event.Properties[0].Value
+          UserName          = if ($props.Count -gt 1) { $props[1].Value } else { $null }
+          DomainName        = if ($props.Count -gt 2) { $props[2].Value } else { $null }
+          TargetName        = if ($props.Count -gt 0) { $props[0].Value } else { $null }
           WorkstationName   = $null
           SecureChannelName = $null
-          ProcessName       = if ($Event.Properties.Count -gt 3) { $Event.Properties[3].Value } else { $null }
-          ProcessId         = if ($Event.Properties.Count -gt 4) { $Event.Properties[4].Value } else { $null }
+          ProcessName       = if ($props.Count -gt 3) { $props[3].Value } else { $null }
+          ProcessId         = if ($props.Count -gt 4) { $props[4].Value } else { $null }
           ComputerName      = $ComputerName
         }
       }
@@ -604,13 +609,13 @@ function Convert-NtlmOperationalEventToObject {
           EventType         = $eventType
           EventDescription  = $descMap[$eventId]
           Time              = $Event.TimeCreated
-          UserName          = $Event.Properties[0].Value
-          DomainName        = $Event.Properties[1].Value
+          UserName          = if ($props.Count -gt 0) { $props[0].Value } else { $null }
+          DomainName        = if ($props.Count -gt 1) { $props[1].Value } else { $null }
           TargetName        = $null
-          WorkstationName   = $Event.Properties[2].Value
+          WorkstationName   = if ($props.Count -gt 2) { $props[2].Value } else { $null }
           SecureChannelName = $null
-          ProcessName       = if ($Event.Properties.Count -gt 3) { $Event.Properties[3].Value } else { $null }
-          ProcessId         = if ($Event.Properties.Count -gt 4) { $Event.Properties[4].Value } else { $null }
+          ProcessName       = if ($props.Count -gt 3) { $props[3].Value } else { $null }
+          ProcessId         = if ($props.Count -gt 4) { $props[4].Value } else { $null }
           ComputerName      = $ComputerName
         }
       }
@@ -622,11 +627,11 @@ function Convert-NtlmOperationalEventToObject {
           EventType         = $eventType
           EventDescription  = $descMap[$eventId]
           Time              = $Event.TimeCreated
-          UserName          = $Event.Properties[0].Value
-          DomainName        = $Event.Properties[1].Value
+          UserName          = if ($props.Count -gt 0) { $props[0].Value } else { $null }
+          DomainName        = if ($props.Count -gt 1) { $props[1].Value } else { $null }
           TargetName        = $null
-          WorkstationName   = $Event.Properties[2].Value
-          SecureChannelName = $Event.Properties[3].Value
+          WorkstationName   = if ($props.Count -gt 2) { $props[2].Value } else { $null }
+          SecureChannelName = if ($props.Count -gt 3) { $props[3].Value } else { $null }
           ProcessName       = $null
           ProcessId         = $null
           ComputerName      = $ComputerName
@@ -1200,6 +1205,8 @@ if ($IncludeNtlmOperationalLog) {
     try {
       Get-WinEvent -LogName 'Microsoft-Windows-NTLM/Operational' -MaxEvents $MaxEvents -FilterXPath $Filter -ErrorAction Stop | ForEach-Object {
         $eventId = $_.Id
+        $p = $_.Properties
+        if (-not $p -or $p.Count -eq 0) { return }
         $isBlock = ($eventId -ge 4001 -and $eventId -le 4006)
         $eventType = if ($isBlock) { 'Block' } else { 'Audit' }
         $baseId = if ($isBlock) { $eventId + 4000 } else { $eventId }
@@ -1211,13 +1218,13 @@ if ($IncludeNtlmOperationalLog) {
               EventType         = $eventType
               EventDescription  = $descMap[$eventId]
               Time              = $_.TimeCreated
-              UserName          = $_.Properties[1].Value
-              DomainName        = $_.Properties[2].Value
-              TargetName        = $_.Properties[0].Value
+              UserName          = if ($p.Count -gt 1) { $p[1].Value } else { $null }
+              DomainName        = if ($p.Count -gt 2) { $p[2].Value } else { $null }
+              TargetName        = if ($p.Count -gt 0) { $p[0].Value } else { $null }
               WorkstationName   = $null
               SecureChannelName = $null
-              ProcessName       = if ($_.Properties.Count -gt 3) { $_.Properties[3].Value } else { $null }
-              ProcessId         = if ($_.Properties.Count -gt 4) { $_.Properties[4].Value } else { $null }
+              ProcessName       = if ($p.Count -gt 3) { $p[3].Value } else { $null }
+              ProcessId         = if ($p.Count -gt 4) { $p[4].Value } else { $null }
               ComputerName      = $env:COMPUTERNAME
             }
           }
@@ -1227,13 +1234,13 @@ if ($IncludeNtlmOperationalLog) {
               EventType         = $eventType
               EventDescription  = $descMap[$eventId]
               Time              = $_.TimeCreated
-              UserName          = $_.Properties[0].Value
-              DomainName        = $_.Properties[1].Value
+              UserName          = if ($p.Count -gt 0) { $p[0].Value } else { $null }
+              DomainName        = if ($p.Count -gt 1) { $p[1].Value } else { $null }
               TargetName        = $null
-              WorkstationName   = $_.Properties[2].Value
+              WorkstationName   = if ($p.Count -gt 2) { $p[2].Value } else { $null }
               SecureChannelName = $null
-              ProcessName       = if ($_.Properties.Count -gt 3) { $_.Properties[3].Value } else { $null }
-              ProcessId         = if ($_.Properties.Count -gt 4) { $_.Properties[4].Value } else { $null }
+              ProcessName       = if ($p.Count -gt 3) { $p[3].Value } else { $null }
+              ProcessId         = if ($p.Count -gt 4) { $p[4].Value } else { $null }
               ComputerName      = $env:COMPUTERNAME
             }
           }
@@ -1243,11 +1250,11 @@ if ($IncludeNtlmOperationalLog) {
               EventType         = $eventType
               EventDescription  = $descMap[$eventId]
               Time              = $_.TimeCreated
-              UserName          = $_.Properties[0].Value
-              DomainName        = $_.Properties[1].Value
+              UserName          = if ($p.Count -gt 0) { $p[0].Value } else { $null }
+              DomainName        = if ($p.Count -gt 1) { $p[1].Value } else { $null }
               TargetName        = $null
-              WorkstationName   = $_.Properties[2].Value
-              SecureChannelName = $_.Properties[3].Value
+              WorkstationName   = if ($p.Count -gt 2) { $p[2].Value } else { $null }
+              SecureChannelName = if ($p.Count -gt 3) { $p[3].Value } else { $null }
               ProcessName       = $null
               ProcessId         = $null
               ComputerName      = $env:COMPUTERNAME
