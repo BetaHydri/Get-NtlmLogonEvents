@@ -1208,6 +1208,7 @@ if ($IncludeNtlmOperationalLog) {
       Get-WinEvent -LogName 'Microsoft-Windows-NTLM/Operational' -MaxEvents $MaxEvents -FilterXPath $Filter -ErrorAction Stop | ForEach-Object {
         $eventId = $_.Id
         $p = $_.Properties
+        $timeCreated = $_.TimeCreated
         if (-not $p -or $p.Count -eq 0) { return }
         $isBlock = ($eventId -ge 4001 -and $eventId -le 4006)
         $eventType = if ($isBlock) { 'Block' } else { 'Audit' }
@@ -1219,7 +1220,7 @@ if ($IncludeNtlmOperationalLog) {
               EventId           = $eventId
               EventType         = $eventType
               EventDescription  = $descMap[$eventId]
-              Time              = $_.TimeCreated
+              Time              = $timeCreated
               UserName          = if ($p.Count -gt 1) { $p[1].Value } else { $null }
               DomainName        = if ($p.Count -gt 2) { $p[2].Value } else { $null }
               TargetName        = if ($p.Count -gt 0) { $p[0].Value } else { $null }
@@ -1235,7 +1236,7 @@ if ($IncludeNtlmOperationalLog) {
               EventId           = $eventId
               EventType         = $eventType
               EventDescription  = $descMap[$eventId]
-              Time              = $_.TimeCreated
+              Time              = $timeCreated
               UserName          = if ($p.Count -gt 0) { $p[0].Value } else { $null }
               DomainName        = if ($p.Count -gt 1) { $p[1].Value } else { $null }
               TargetName        = $null
@@ -1251,7 +1252,7 @@ if ($IncludeNtlmOperationalLog) {
               EventId           = $eventId
               EventType         = $eventType
               EventDescription  = $descMap[$eventId]
-              Time              = $_.TimeCreated
+              Time              = $timeCreated
               UserName          = if ($p.Count -gt 0) { $p[0].Value } else { $null }
               DomainName        = if ($p.Count -gt 1) { $p[1].Value } else { $null }
               TargetName        = $null
