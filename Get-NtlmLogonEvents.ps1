@@ -687,9 +687,9 @@ function Test-NtlmAuditConfiguration {
       RegPath      = $msv1_0Path
       ValueName    = 'RestrictReceivingNTLMTraffic'
       ValueMap     = @{ 0 = 'Allow all'; 1 = 'Deny all domain accounts'; 2 = 'Deny all accounts' }
-      Recommended  = 'Deny all domain accounts'
+      Recommended  = 'Deny all domain accounts (final goal)'
       RecTest      = { param($v) $null -ne $v -and [int]$v -ge 1 }
-      Scope        = 'All devices'
+      Scope        = 'All devices (with exceptions if needed)'
     }
     @{
       PolicyName   = 'Network security: Restrict NTLM: Audit NTLM authentication in this domain'
@@ -816,9 +816,9 @@ if ($CheckAuditConfig) {
         RegPath = "$msv1_0Path\RestrictReceivingNTLMTraffic"
         Path = $msv1_0Path; Name = 'RestrictReceivingNTLMTraffic'
         Map = @{ 0 = 'Allow all'; 1 = 'Deny all domain accounts'; 2 = 'Deny all accounts' }
-        Rec = 'Deny all domain accounts'
+        Rec = 'Deny all domain accounts (final goal)'
         RecTest = { param($v) $null -ne $v -and [int]$v -ge 1 }
-        Scope = 'All devices'
+        Scope = 'Alle devices (with exceptions if needed)'
       }
       @{
         Policy = 'Network security: Restrict NTLM: Audit NTLM authentication in this domain'
