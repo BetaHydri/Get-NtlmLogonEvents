@@ -432,6 +432,51 @@ If `-IncludeNtlmOperationalLog` returns no events, run `-CheckAuditConfig` first
     Format-Table Time, EventDescription, UserName, WorkstationName, ProcessName, ComputerName
 ```
 
+### Grouping Security and Operational Events
+
+Since Security log events (4624/4625) and NTLM Operational events (8001–8006) are separate event streams with no shared session ID, they cannot be deterministically joined. The following recipes help you visually correlate or analyse the combined output.
+
+```powershell
+# Side-by-side timeline — interleave both streams sorted by time
+# Security (4624) and Operational (8002/8003) events that happened at the same time
+# are likely related to the same authentication
+.\Get-NtlmLogonEvents.ps1 -IncludeNtlmOperationalLog -ExcludeNullSessions |
+    Sort-Object Time |
+    Format-Table EventId, Time, UserName, ProcessName, EventType, IPAddress, LmPackageName -AutoSize
+
+# Group events by second — events within the same second are likely related
+.\Get-NtlmLogonEvents.ps1 -IncludeNtlmOperationalLog -ExcludeNullSessions |
+    Sort-Object Time |
+    Select-Object *, @{N='TimeSlot'; E={$_.Time.ToString('yyyy-MM-dd HH:mm:ss')}} |
+    Format-Table EventId, TimeSlot, UserName, ProcessName, EventType, IPAddress -GroupBy TimeSlot
+
+# Export both streams to separate CSV files for analysis in Excel / Power Query
+.\Get-NtlmLogonEvents.ps1 -ExcludeNullSessions -NumEvents 1000 |
+    Export-Csv -Path .\security_events.csv -NoTypeInformation
+
+.\Get-NtlmLogonEvents.ps1 -IncludeNtlmOperationalLog -ExcludeNullSessions -NumEvents 1000 |
+    Where-Object EventId -notin 4624,4625 |
+    Export-Csv -Path .\operational_events.csv -NoTypeInformation
+
+# Quick pipeline join by time proximity (±3 seconds)
+$all = .\Get-NtlmLogonEvents.ps1 -IncludeNtlmOperationalLog -ExcludeNullSessions
+$sec = $all | Where-Object { $_.EventId -in 4624, 4625 }
+$op  = $all | Where-Object { $_.EventId -notin 4624, 4625 }
+
+$sec | ForEach-Object {
+    $t = $_.Time
+    $match = $op |
+        Where-Object { [Math]::Abs(($_.Time - $t).TotalSeconds) -le 3 } |
+        Select-Object -First 1
+    $_ | Select-Object EventId, Time, UserName, IPAddress,
+        @{N='OpEventId';E={$match.EventId}},
+        @{N='OpProcess';E={$match.ProcessName}},
+        @{N='OpType';E={$match.EventType}}
+} | Format-Table -AutoSize
+```
+
+> **Note:** Time-based grouping works well in low-traffic environments. On busy servers with many concurrent NTLM logons from the same account, multiple operational events may fall within the same time window, making it difficult to determine which operational event belongs to which security event.
+
 ## Sample Output
 
 ### Successful Logon (Event ID 4624)
