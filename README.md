@@ -251,6 +251,15 @@ When Kerberos negotiation fails (e.g., missing SPNs, clock skew, DNS issues), Wi
     Where-Object AuthenticationPackageName -eq 'Negotiate' |
     Sort-Object WorkstationName |
     Format-Table Time, UserName, WorkstationName, LmPackageName, IPAddress
+
+# Combine Security log fallbacks with NTLM Operational log events
+.\Get-NtlmLogonEvents.ps1 -Target DCs -NumEvents 200 -IncludeNtlmOperationalLog |
+    Where-Object {
+        ($_.PSObject.TypeNames -contains 'NtlmLogonEvent' -and $_.AuthenticationPackageName -eq 'Negotiate') -or
+        ($_.PSObject.TypeNames -contains 'NtlmOperationalEvent')
+    } |
+    Sort-Object Time |
+    Format-List
 ```
 
 ### Failed Logon Analysis
