@@ -47,9 +47,38 @@ This script exposes both `AuthenticationPackageName` and `LogonProcessName` so y
 |---|---|
 | PowerShell | 5.1 or later |
 | Privileges | Must run elevated (Administrator) to read the Security event log |
-| Remote targets | WinRM enabled on remote hosts (`winrm quickconfig`) |
+| Remote targets | WinRM enabled on remote hosts (`winrm quickconfig`). See [WinRM Firewall Prerequisites](#winrm-firewall-prerequisites). |
 | Domain Controllers | ActiveDirectory PowerShell module (RSAT) |
 | NTLM Operational log | Requires NTLM auditing GPO policies to be configured first (see [Prerequisites for NTLM Operational Log](#prerequisites-for-ntlm-operational-log)). The log channel itself is enabled by default — no manual enablement needed. |
+
+### WinRM Firewall Prerequisites
+
+When querying **remote** hosts (via `-ComputerName`, `-Target DCs`, or `-Target Forest`), the script uses WinRM (`Get-WinEvent -ComputerName` / `Invoke-Command`). The following ports and firewall rules must be in place:
+
+| Port | Protocol | Transport | Purpose |
+|---|---|---|---|
+| **TCP 5985** | HTTP | WinRM default listener | Used by PowerShell remoting and `Get-WinEvent -ComputerName` |
+| **TCP 5986** | HTTPS | WinRM over TLS | Used when an SSL certificate is configured on the remote host |
+
+#### Firewall rules on remote targets
+
+1. **Windows Firewall** — The built-in rule **"Windows Remote Management (HTTP-In)"** must be enabled. Running `winrm quickconfig` or `Enable-PSRemoting` on the remote host configures this automatically.
+2. **Network / perimeter firewalls** — Any firewalls between the querying machine and the remote targets must allow inbound **TCP 5985** (or **TCP 5986** for HTTPS).
+
+#### Quick setup on the remote host
+
+```powershell
+# Option 1 — Enable-PSRemoting (recommended, creates firewall rule + starts WinRM service)
+Enable-PSRemoting -Force
+
+# Option 2 — winrm quickconfig (classic approach)
+winrm quickconfig
+
+# Verify the listener is active
+winrm enumerate winrm/config/listener
+```
+
+> **Note:** On domain-joined machines the WinRM service is often already enabled via Group Policy. If you can `Enter-PSSession` to the target host, no further configuration is needed.
 
 ## Installation
 
