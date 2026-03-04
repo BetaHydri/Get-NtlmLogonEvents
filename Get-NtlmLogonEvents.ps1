@@ -1375,7 +1375,7 @@ if ($Target -eq 'Localhost' -and -not $PSBoundParameters.ContainsKey('ComputerNa
       Merge-PrivilegedLogonData -Events $events
     }
 
-    $events
+    $events | Select-Object $outputProperties
   }
   catch [Exception] {
     if ($_.Exception.Message -match 'No events were found') {
@@ -1393,10 +1393,11 @@ if ($Target -eq 'Localhost' -and -not $PSBoundParameters.ContainsKey('ComputerNa
       $ntlmOpEvents = Get-WinEvent -LogName 'Microsoft-Windows-NTLM/Operational' -MaxEvents $NumEvents -FilterXPath $ntlmOpFilter -ErrorAction Stop |
       Convert-NtlmOperationalEventToObject -ComputerName $env:COMPUTERNAME
       if ($ExcludeNullSessions) {
-        $ntlmOpEvents | Where-Object { $_.UserName -and $_.UserName -ne '(NULL)' }
+        $ntlmOpEvents | Where-Object { $_.UserName -and $_.UserName -ne '(NULL)' } |
+        Select-Object $ntlmOpOutputProperties
       }
       else {
-        $ntlmOpEvents
+        $ntlmOpEvents | Select-Object $ntlmOpOutputProperties
       }
     }
     catch {
