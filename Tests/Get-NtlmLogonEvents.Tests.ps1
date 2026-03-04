@@ -709,6 +709,21 @@ Describe 'Get-NtlmLogonEvents.ps1 Script Parameters' {
             $command.Parameters['Credential'].ParameterType.Name | Should -Be 'PSCredential'
         }
 
+        It 'Should have Authentication parameter of type String' {
+            $command.Parameters['Authentication'].ParameterType.Name | Should -Be 'String'
+        }
+
+        It 'Should have Authentication parameter with ValidateSet Default, Negotiate, Kerberos, NegotiateWithImplicitCredential' {
+            $validateSet = $command.Parameters['Authentication'].Attributes |
+                Where-Object { $_ -is [System.Management.Automation.ValidateSetAttribute] }
+            $validateSet | Should -Not -BeNullOrEmpty
+            $validateSet.ValidValues | Should -Contain 'Default'
+            $validateSet.ValidValues | Should -Contain 'Negotiate'
+            $validateSet.ValidValues | Should -Contain 'Kerberos'
+            $validateSet.ValidValues | Should -Contain 'NegotiateWithImplicitCredential'
+            $validateSet.ValidValues | Should -HaveCount 4
+        }
+
         It 'Should support CmdletBinding (Verbose, etc.)' {
             $command.ScriptBlock.Attributes |
             Where-Object { $_ -is [System.Management.Automation.CmdletBindingAttribute] } |
@@ -727,6 +742,10 @@ Describe 'Get-NtlmLogonEvents.ps1 Script Parameters' {
 
         It 'Should reject invalid Target values' {
             { & $scriptPath -Target 'server.contoso.com' } | Should -Throw
+        }
+
+        It 'Should reject invalid Authentication values' {
+            { & $scriptPath -Authentication 'Basic' } | Should -Throw
         }
     }
 
@@ -930,6 +949,7 @@ Describe 'Script file quality' {
         $scriptContent | Should -Match '\.PARAMETER StartTime'
         $scriptContent | Should -Match '\.PARAMETER EndTime'
         $scriptContent | Should -Match '\.PARAMETER Credential'
+        $scriptContent | Should -Match '\.PARAMETER Authentication'
         $scriptContent | Should -Match '\.PARAMETER CheckAuditConfig'
         $scriptContent | Should -Match '\.PARAMETER IncludeNtlmOperationalLog'
         $scriptContent | Should -Match '\.PARAMETER ComputerName'

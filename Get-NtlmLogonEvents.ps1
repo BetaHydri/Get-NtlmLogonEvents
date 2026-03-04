@@ -63,6 +63,17 @@
     Connects to server.contoso.com using alternate credentials.
 
     .EXAMPLE
+    .\Get-NtlmLogonEvents.ps1 -ComputerName server.contoso.com -Authentication Negotiate
+
+    Connects to server.contoso.com forcing Negotiate authentication (Kerberos with NTLM fallback).
+    Useful when Kerberos alone fails due to clock skew, missing SPNs, or workgroup scenarios.
+
+    .EXAMPLE
+    .\Get-NtlmLogonEvents.ps1 -ComputerName server.contoso.com -Credential (Get-Credential) -Authentication Negotiate
+
+    Connects with explicit credentials and Negotiate authentication (NTLM fallback enabled).
+
+    .EXAMPLE
     .\Get-NtlmLogonEvents.ps1 | Export-Csv -Path .\ntlm_events.csv -NoTypeInformation
 
     Exports all NTLM logon events to a CSV file.
@@ -193,6 +204,15 @@
     which are high-value targets for relay and pass-the-hash attacks.
     Note: Only applies to successful logons (4624). Failed logons (4625) show IsPrivileged=$false.
 
+    .PARAMETER Authentication
+    Specifies the authentication mechanism for WinRM connections to remote computers.
+    Valid values: Default, Negotiate, Kerberos, NegotiateWithImplicitCredential.
+    When omitted, WinRM uses its default (typically Negotiate, which tries Kerberos first
+    and falls back to NTLM). Use 'Negotiate' or 'NegotiateWithImplicitCredential' when
+    Kerberos is unavailable (e.g., workgroup machines, clock skew, missing SPNs).
+    Works independently of -Credential — you can force NTLM fallback with or without
+    explicit credentials.
+
     .PARAMETER Credential
     Optional PSCredential object for authenticating to remote computers.
 
@@ -286,6 +306,9 @@ param(
   [Parameter(ParameterSetName = 'Default')]
   [Parameter(ParameterSetName = 'ComputerName')]
   [datetime]$EndTime,
+
+  [ValidateSet('Default', 'Negotiate', 'Kerberos', 'NegotiateWithImplicitCredential')]
+  [string]$Authentication,
 
   [System.Management.Automation.PSCredential]
   [System.Management.Automation.Credential()]
@@ -919,6 +942,9 @@ if ($CheckAuditConfig) {
   if ($Credential -ne [System.Management.Automation.PSCredential]::Empty) {
     $checkInvokeParams['Credential'] = $Credential
   }
+  if ($PSBoundParameters.ContainsKey('Authentication')) {
+    $checkInvokeParams['Authentication'] = $Authentication
+  }
 
   if ($Target -eq 'Localhost' -and -not $PSBoundParameters.ContainsKey('ComputerName')) {
     Write-Verbose 'Checking NTLM audit configuration on local host...'
@@ -1189,6 +1215,9 @@ $invokeParams = @{
 if ($Credential -ne [System.Management.Automation.PSCredential]::Empty) {
   $invokeParams['Credential'] = $Credential
 }
+if ($PSBoundParameters.ContainsKey('Authentication')) {
+  $invokeParams['Authentication'] = $Authentication
+}
 
 # NTLM Operational log setup (if requested)
 if ($IncludeNtlmOperationalLog) {
@@ -1398,6 +1427,9 @@ elseif ($Target -eq 'DCs') {
     if ($Credential -ne [System.Management.Automation.PSCredential]::Empty) {
       $ntlmOpInvokeParams['Credential'] = $Credential
     }
+    if ($PSBoundParameters.ContainsKey('Authentication')) {
+      $ntlmOpInvokeParams['Authentication'] = $Authentication
+    }
     try {
       $ntlmOpResults = Invoke-Command @ntlmOpInvokeParams |
       Select-Object $ntlmOpOutputProperties
@@ -1484,6 +1516,9 @@ elseif ($Target -eq 'Forest') {
       if ($Credential -ne [System.Management.Automation.PSCredential]::Empty) {
         $ntlmOpInvokeParams['Credential'] = $Credential
       }
+      if ($PSBoundParameters.ContainsKey('Authentication')) {
+        $ntlmOpInvokeParams['Authentication'] = $Authentication
+      }
       try {
         $ntlmOpResults = Invoke-Command @ntlmOpInvokeParams |
         Select-Object $ntlmOpOutputProperties
@@ -1536,6 +1571,9 @@ elseif ($PSBoundParameters.ContainsKey('ComputerName')) {
     }
     if ($Credential -ne [System.Management.Automation.PSCredential]::Empty) {
       $ntlmOpInvokeParams['Credential'] = $Credential
+    }
+    if ($PSBoundParameters.ContainsKey('Authentication')) {
+      $ntlmOpInvokeParams['Authentication'] = $Authentication
     }
     try {
       $ntlmOpResults = Invoke-Command @ntlmOpInvokeParams |
