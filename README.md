@@ -105,7 +105,7 @@ cd Get-NtlmLogonEvents
 | `-IncludeNtlmOperationalLog` | Switch | Off | Default, ComputerName | Also query `Microsoft-Windows-NTLM/Operational` log (events 8001-8006 audit + 4001-4006 block) |
 | `-CheckAuditConfig` | Switch | — | AuditConfig, AuditConfigComputerName | Check NTLM audit/restriction GPO registry settings (standalone mode — no event queries). Mandatory in its parameter sets. |
 | `-IncludeMessage` | Switch | Off | Default, ComputerName | Include the full event `Message` text in the output for both Security log (4624/4625) and NTLM Operational log events. Useful for forensic review or human-readable export. |
-| `-Domain` | String | — | Default, AuditConfig | AD domain to query when using `-Target DCs` (passed as `-Server` to `Get-ADDomainController`). Not used with `-Target Forest`. |
+| `-Domain` | String | — | Default, AuditConfig | AD domain to query when using `-Target DCs` (passed as `-Server` to `Get-ADDomainController`). **Without `-Domain`, DCs are discovered from the current user's domain** (`$env:USERDNSDOMAIN`), not the machine's domain. In cross-domain scenarios (user from domain A logged onto a machine in domain B), you must specify `-Domain` explicitly to target the correct domain's DCs. Not used with `-Target Forest`. |
 | `-StartTime` | DateTime | — | Default, ComputerName | Only return events after this date/time |
 | `-EndTime` | DateTime | — | Default, ComputerName | Only return events before this date/time |
 | `-Authentication` | String | — | All | WinRM authentication mechanism: `Default`, `Negotiate`, `Kerberos`, or `NegotiateWithImplicitCredential`. Use `Negotiate` when Kerberos is unavailable (workgroup, clock skew, missing SPNs). Works with or without `-Credential`. |
@@ -137,13 +137,19 @@ cd Get-NtlmLogonEvents
 # Query multiple remote servers
 .\Get-NtlmLogonEvents.ps1 -ComputerName server1.contoso.com, server2.contoso.com
 
-# Query all domain controllers
+# Query all domain controllers in the current user's domain
+# NOTE: Without -Domain, DCs are discovered from the logged-in user's domain,
+#       NOT the machine's domain. If your user account is from domain A but you
+#       are logged onto a machine joined to domain B, this queries domain A's DCs.
+#       Use -Domain to target a specific domain explicitly.
 .\Get-NtlmLogonEvents.ps1 -Target DCs
 
 # Query all DCs across the entire AD forest
 .\Get-NtlmLogonEvents.ps1 -Target Forest
 
-# Query DCs in a specific domain (multi-domain forest or trusted domain)
+# Query DCs in a specific domain (required in cross-domain scenarios)
+# Use this when your user domain differs from the machine's domain,
+# or to target a child domain / trusted domain explicitly
 .\Get-NtlmLogonEvents.ps1 -Target DCs -Domain child.contoso.com
 
 # Query DCs in a trusted domain with alternate credentials
