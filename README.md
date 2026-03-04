@@ -105,6 +105,7 @@ cd Get-NtlmLogonEvents
 | `-Domain` | String | — | Default, AuditConfig | AD domain to query when using `-Target DCs` (passed as `-Server` to `Get-ADDomainController`). Not used with `-Target Forest`. |
 | `-StartTime` | DateTime | — | Default, ComputerName | Only return events after this date/time |
 | `-EndTime` | DateTime | — | Default, ComputerName | Only return events before this date/time |
+| `-Authentication` | String | — | All | WinRM authentication mechanism: `Default`, `Negotiate`, `Kerberos`, or `NegotiateWithImplicitCredential`. Use `Negotiate` when Kerberos is unavailable (workgroup, clock skew, missing SPNs). Works with or without `-Credential`. |
 | `-Credential` | PSCredential | — | All | Alternate credentials for remote connections |
 
 ### Parameter Sets
@@ -147,6 +148,12 @@ cd Get-NtlmLogonEvents
 
 # Use alternate credentials for remote connections
 .\Get-NtlmLogonEvents.ps1 -ComputerName server.contoso.com -Credential (Get-Credential)
+
+# Force Negotiate authentication (Kerberos with NTLM fallback) — useful for workgroup machines or SPN issues
+.\Get-NtlmLogonEvents.ps1 -ComputerName server.contoso.com -Authentication Negotiate
+
+# Combine alternate credentials with Negotiate authentication
+.\Get-NtlmLogonEvents.ps1 -ComputerName server.contoso.com -Credential (Get-Credential) -Authentication Negotiate
 
 # Verbose output for troubleshooting
 .\Get-NtlmLogonEvents.ps1 -Target DCs -Verbose
