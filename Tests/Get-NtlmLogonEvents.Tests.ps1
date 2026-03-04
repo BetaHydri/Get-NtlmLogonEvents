@@ -229,7 +229,7 @@ Describe 'Convert-EventToObject' {
         It 'Should map LogonType from Properties[8]' {
             $event = New-MockEvent -LogonType 10
             $result = Convert-EventToObject -Event $event -ComputerName 'SRV01'
-            $result.LogonType | Should -Be 10
+            $result.LogonType | Should -Be '10 (RemoteInteractive)'
         }
 
         It 'Should map WorkstationName from Properties[11]' {
@@ -311,6 +311,80 @@ Describe 'Convert-EventToObject' {
             $event = New-MockEvent -Impersonation ''
             $result = Convert-EventToObject -Event $event -ComputerName 'SRV01'
             $result.ImpersonationLevel | Should -Be ''
+        }
+    }
+
+    Context 'LogonType enrichment' {
+        It 'Should enrich LogonType 2 as "2 (Interactive)"' {
+            $event = New-MockEvent -LogonType 2
+            $result = Convert-EventToObject -Event $event -ComputerName 'SRV01'
+            $result.LogonType | Should -Be '2 (Interactive)'
+        }
+
+        It 'Should enrich LogonType 3 as "3 (Network)"' {
+            $event = New-MockEvent -LogonType 3
+            $result = Convert-EventToObject -Event $event -ComputerName 'SRV01'
+            $result.LogonType | Should -Be '3 (Network)'
+        }
+
+        It 'Should enrich LogonType 4 as "4 (Batch)"' {
+            $event = New-MockEvent -LogonType 4
+            $result = Convert-EventToObject -Event $event -ComputerName 'SRV01'
+            $result.LogonType | Should -Be '4 (Batch)'
+        }
+
+        It 'Should enrich LogonType 5 as "5 (Service)"' {
+            $event = New-MockEvent -LogonType 5
+            $result = Convert-EventToObject -Event $event -ComputerName 'SRV01'
+            $result.LogonType | Should -Be '5 (Service)'
+        }
+
+        It 'Should enrich LogonType 7 as "7 (Unlock)"' {
+            $event = New-MockEvent -LogonType 7
+            $result = Convert-EventToObject -Event $event -ComputerName 'SRV01'
+            $result.LogonType | Should -Be '7 (Unlock)'
+        }
+
+        It 'Should enrich LogonType 8 as "8 (NetworkCleartext)"' {
+            $event = New-MockEvent -LogonType 8
+            $result = Convert-EventToObject -Event $event -ComputerName 'SRV01'
+            $result.LogonType | Should -Be '8 (NetworkCleartext)'
+        }
+
+        It 'Should enrich LogonType 9 as "9 (NewCredentials)"' {
+            $event = New-MockEvent -LogonType 9
+            $result = Convert-EventToObject -Event $event -ComputerName 'SRV01'
+            $result.LogonType | Should -Be '9 (NewCredentials)'
+        }
+
+        It 'Should enrich LogonType 10 as "10 (RemoteInteractive)"' {
+            $event = New-MockEvent -LogonType 10
+            $result = Convert-EventToObject -Event $event -ComputerName 'SRV01'
+            $result.LogonType | Should -Be '10 (RemoteInteractive)'
+        }
+
+        It 'Should enrich LogonType 11 as "11 (CachedInteractive)"' {
+            $event = New-MockEvent -LogonType 11
+            $result = Convert-EventToObject -Event $event -ComputerName 'SRV01'
+            $result.LogonType | Should -Be '11 (CachedInteractive)'
+        }
+
+        It 'Should enrich LogonType 12 as "12 (CachedRemoteInteractive)"' {
+            $event = New-MockEvent -LogonType 12
+            $result = Convert-EventToObject -Event $event -ComputerName 'SRV01'
+            $result.LogonType | Should -Be '12 (CachedRemoteInteractive)'
+        }
+
+        It 'Should enrich LogonType 13 as "13 (CachedUnlock)"' {
+            $event = New-MockEvent -LogonType 13
+            $result = Convert-EventToObject -Event $event -ComputerName 'SRV01'
+            $result.LogonType | Should -Be '13 (CachedUnlock)'
+        }
+
+        It 'Should pass through unknown LogonType values unchanged' {
+            $event = New-MockEvent -LogonType 99
+            $result = Convert-EventToObject -Event $event -ComputerName 'SRV01'
+            $result.LogonType | Should -Be 99
         }
     }
 
@@ -515,7 +589,7 @@ Describe 'Convert-EventToObject (Event ID 4625 - Failed Logon)' {
         It 'Should map LogonType from Properties[10] (not [8])' {
             $event = New-MockFailedEvent -LogonType 10
             $result = Convert-EventToObject -Event $event -ComputerName 'SRV01'
-            $result.LogonType | Should -Be 10
+            $result.LogonType | Should -Be '10 (RemoteInteractive)'
         }
 
         It 'Should map WorkstationName from Properties[13] (not [11])' {
@@ -665,7 +739,7 @@ Describe 'Get-NtlmLogonEvents.ps1 Script Parameters' {
 
         It 'Should have Target parameter with ValidateSet Localhost, DCs, Forest' {
             $validateSet = $command.Parameters['Target'].Attributes |
-                Where-Object { $_ -is [System.Management.Automation.ValidateSetAttribute] }
+            Where-Object { $_ -is [System.Management.Automation.ValidateSetAttribute] }
             $validateSet | Should -Not -BeNullOrEmpty
             $validateSet.ValidValues | Should -Contain 'Localhost'
             $validateSet.ValidValues | Should -Contain 'DCs'
@@ -727,7 +801,7 @@ Describe 'Get-NtlmLogonEvents.ps1 Script Parameters' {
 
         It 'Should have Authentication parameter with ValidateSet Default, Negotiate, Kerberos, NegotiateWithImplicitCredential' {
             $validateSet = $command.Parameters['Authentication'].Attributes |
-                Where-Object { $_ -is [System.Management.Automation.ValidateSetAttribute] }
+            Where-Object { $_ -is [System.Management.Automation.ValidateSetAttribute] }
             $validateSet | Should -Not -BeNullOrEmpty
             $validateSet.ValidValues | Should -Contain 'Default'
             $validateSet.ValidValues | Should -Contain 'Negotiate'
@@ -764,43 +838,43 @@ Describe 'Get-NtlmLogonEvents.ps1 Script Parameters' {
     Context 'Parameter sets' {
         It 'Should have Default as the default parameter set' {
             $cmdletBinding = $command.ScriptBlock.Attributes |
-                Where-Object { $_ -is [System.Management.Automation.CmdletBindingAttribute] }
+            Where-Object { $_ -is [System.Management.Automation.CmdletBindingAttribute] }
             $cmdletBinding.DefaultParameterSetName | Should -Be 'Default'
         }
 
         It 'Should have ComputerName mandatory in the ComputerName parameter set' {
             $paramAttrs = $command.Parameters['ComputerName'].Attributes |
-                Where-Object { $_ -is [System.Management.Automation.ParameterAttribute] -and $_.ParameterSetName -eq 'ComputerName' }
+            Where-Object { $_ -is [System.Management.Automation.ParameterAttribute] -and $_.ParameterSetName -eq 'ComputerName' }
             $paramAttrs.Mandatory | Should -BeTrue
         }
 
         It 'Should have ComputerName mandatory in the AuditConfigComputerName parameter set' {
             $paramAttrs = $command.Parameters['ComputerName'].Attributes |
-                Where-Object { $_ -is [System.Management.Automation.ParameterAttribute] -and $_.ParameterSetName -eq 'AuditConfigComputerName' }
+            Where-Object { $_ -is [System.Management.Automation.ParameterAttribute] -and $_.ParameterSetName -eq 'AuditConfigComputerName' }
             $paramAttrs.Mandatory | Should -BeTrue
         }
 
         It 'Should have CheckAuditConfig mandatory in the AuditConfig parameter set' {
             $paramAttrs = $command.Parameters['CheckAuditConfig'].Attributes |
-                Where-Object { $_ -is [System.Management.Automation.ParameterAttribute] -and $_.ParameterSetName -eq 'AuditConfig' }
+            Where-Object { $_ -is [System.Management.Automation.ParameterAttribute] -and $_.ParameterSetName -eq 'AuditConfig' }
             $paramAttrs.Mandatory | Should -BeTrue
         }
 
         It 'Should have CheckAuditConfig mandatory in the AuditConfigComputerName parameter set' {
             $paramAttrs = $command.Parameters['CheckAuditConfig'].Attributes |
-                Where-Object { $_ -is [System.Management.Automation.ParameterAttribute] -and $_.ParameterSetName -eq 'AuditConfigComputerName' }
+            Where-Object { $_ -is [System.Management.Automation.ParameterAttribute] -and $_.ParameterSetName -eq 'AuditConfigComputerName' }
             $paramAttrs.Mandatory | Should -BeTrue
         }
 
         It 'Should NOT have event-only parameters in AuditConfig sets' {
             $eventOnlyParams = @('NumEvents', 'ExcludeNullSessions', 'OnlyNTLMv1',
-                                 'IncludeFailedLogons', 'CorrelatePrivileged',
-                                 'IncludeNtlmOperationalLog', 'IncludeMessage',
-                                 'StartTime', 'EndTime')
+                'IncludeFailedLogons', 'CorrelatePrivileged',
+                'IncludeNtlmOperationalLog', 'IncludeMessage',
+                'StartTime', 'EndTime')
             foreach ($paramName in $eventOnlyParams) {
                 $paramSets = $command.Parameters[$paramName].Attributes |
-                    Where-Object { $_ -is [System.Management.Automation.ParameterAttribute] } |
-                    ForEach-Object { $_.ParameterSetName }
+                Where-Object { $_ -is [System.Management.Automation.ParameterAttribute] } |
+                ForEach-Object { $_.ParameterSetName }
                 $paramSets | Should -Not -Contain 'AuditConfig' -Because "$paramName should not be in AuditConfig set"
                 $paramSets | Should -Not -Contain 'AuditConfigComputerName' -Because "$paramName should not be in AuditConfigComputerName set"
             }
@@ -808,8 +882,8 @@ Describe 'Get-NtlmLogonEvents.ps1 Script Parameters' {
 
         It 'Should have Domain only in Default and AuditConfig parameter sets' {
             $paramSets = $command.Parameters['Domain'].Attributes |
-                Where-Object { $_ -is [System.Management.Automation.ParameterAttribute] } |
-                ForEach-Object { $_.ParameterSetName }
+            Where-Object { $_ -is [System.Management.Automation.ParameterAttribute] } |
+            ForEach-Object { $_.ParameterSetName }
             $paramSets | Should -Contain 'Default'
             $paramSets | Should -Contain 'AuditConfig'
             $paramSets | Should -Not -Contain 'ComputerName'
@@ -1362,7 +1436,7 @@ Describe 'Test-NtlmAuditConfiguration' {
         It 'Should show Not configured when registry values are missing' {
             Mock Get-ItemProperty { throw 'Not found' }
             $results = Test-NtlmAuditConfiguration
-            $results | Where-Object Setting -eq 'Not configured' | Should -Not -BeNullOrEmpty
+            $results | Where-Object Setting -EQ 'Not configured' | Should -Not -BeNullOrEmpty
         }
 
         It 'Should include PolicyName, Setting, Recommended, and IsRecommended properties' {
@@ -1627,24 +1701,24 @@ Describe 'Realistic Scenario: Domain Admin NTLM logon from VPN client' {
 
         $result = Convert-EventToObject -Event $mockEvent -ComputerName 'DC01'
 
-        $result.EventId                   | Should -Be 4624
-        $result.Time                      | Should -Be $timestamp
-        $result.UserName                  | Should -Be 'Administrator'
-        $result.TargetDomainName          | Should -Be 'CONTOSO'
-        $result.LogonType                 | Should -Be 3
-        $result.LogonProcessName          | Should -Be 'NtLmSsp'
+        $result.EventId | Should -Be 4624
+        $result.Time | Should -Be $timestamp
+        $result.UserName | Should -Be 'Administrator'
+        $result.TargetDomainName | Should -Be 'CONTOSO'
+        $result.LogonType | Should -Be '3 (Network)'
+        $result.LogonProcessName | Should -Be 'NtLmSsp'
         $result.AuthenticationPackageName | Should -Be 'NTLM'
-        $result.WorkstationName           | Should -Be 'VPN01'
-        $result.LmPackageName             | Should -Be 'NTLM V2'
-        $result.IPAddress                 | Should -Be '172.16.1.10'
-        $result.TCPPort                   | Should -Be 0
-        $result.ImpersonationLevel        | Should -Be 'Impersonation'
-        $result.ProcessName               | Should -Be '-'
-        $result.Status                    | Should -BeNullOrEmpty
-        $result.FailureReason             | Should -BeNullOrEmpty
-        $result.SubStatus                 | Should -BeNullOrEmpty
-        $result.TargetLogonId             | Should -Be '12255534'
-        $result.ComputerName              | Should -Be 'DC01'
+        $result.WorkstationName | Should -Be 'VPN01'
+        $result.LmPackageName | Should -Be 'NTLM V2'
+        $result.IPAddress | Should -Be '172.16.1.10'
+        $result.TCPPort | Should -Be 0
+        $result.ImpersonationLevel | Should -Be 'Impersonation'
+        $result.ProcessName | Should -Be '-'
+        $result.Status | Should -BeNullOrEmpty
+        $result.FailureReason | Should -BeNullOrEmpty
+        $result.SubStatus | Should -BeNullOrEmpty
+        $result.TargetLogonId | Should -Be '12255534'
+        $result.ComputerName | Should -Be 'DC01'
     }
 
     It 'Should identify the VPN logon as privileged when correlated with Event ID 4672' {
@@ -1689,7 +1763,7 @@ Describe 'Realistic Scenario: Domain Admin NTLM logon from VPN client' {
 
         Merge-PrivilegedLogonData -Events @($logonEvent)
 
-        $logonEvent.IsPrivileged  | Should -BeTrue
+        $logonEvent.IsPrivileged | Should -BeTrue
         $logonEvent.PrivilegeList | Should -Match 'SeDebugPrivilege'
         $logonEvent.PrivilegeList | Should -Match 'SeBackupPrivilege'
     }

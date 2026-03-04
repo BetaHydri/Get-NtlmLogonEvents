@@ -40,6 +40,7 @@ This script exposes both `AuthenticationPackageName` and `LogonProcessName` so y
 - **Check NTLM audit configuration** — `-CheckAuditConfig` reads the relevant registry values and reports whether recommended NTLM auditing GPO settings are enabled ([reference](https://techcommunity.microsoft.com/blog/coreinfrastructureandsecurityblog/active-directory-hardening-series---part-8-%E2%80%93-disabling-ntlm/4485782))
 - **Include full event message text** — `-IncludeMessage` adds the human-readable `Message` property to output objects for both Security log and NTLM Operational log events, useful for forensic review or export
 - Translates impersonation level codes (`%%1831`–`%%1834`) to human-readable names (see [Impersonation Levels Reference](#impersonation-levels-reference))
+- Enriches `LogonType` with human-readable descriptions (e.g. `3 (Network)`, `10 (RemoteInteractive)`) — see [Logon Types Reference](#logon-types-reference)
 - Outputs structured `PSCustomObject` — pipeable to `Export-Csv`, `ConvertTo-Json`, `Format-Table`, etc.
 
 ## Requirements
@@ -439,7 +440,7 @@ EventId                   : 4624
 Time                      : 2/25/2026 10:23:45 AM
 UserName                  : jsmith
 TargetDomainName          : CONTOSO
-LogonType                 : 3
+LogonType                 : 3 (Network)
 LogonProcessName          : NtLmSsp
 AuthenticationPackageName : NTLM
 WorkstationName           : WKS-PC042
@@ -461,7 +462,7 @@ EventId                   : 4624
 Time                      : 2/25/2026 10:25:03 AM
 UserName                  : jsmith
 TargetDomainName          : CONTOSO
-LogonType                 : 3
+LogonType                 : 3 (Network)
 LogonProcessName          : Negotiate
 AuthenticationPackageName : Negotiate
 WorkstationName           : WKS-PC042
@@ -483,7 +484,7 @@ EventId                   : 4625
 Time                      : 2/25/2026 10:24:12 AM
 UserName                  : admin
 TargetDomainName          : CONTOSO
-LogonType                 : 3
+LogonType                 : 3 (Network)
 LogonProcessName          : NtLmSsp
 AuthenticationPackageName : NTLM
 WorkstationName           : ATTACKER-PC
@@ -505,7 +506,7 @@ EventId                   : 4624
 Time                      : 2/25/2026 10:23:45 AM
 UserName                  : admin.jsmith
 TargetDomainName          : CONTOSO
-LogonType                 : 3
+LogonType                 : 3 (Network)
 LogonProcessName          : NtLmSsp
 AuthenticationPackageName : NTLM
 WorkstationName           : WKS-PC042
@@ -564,7 +565,7 @@ ComputerName  : DC01
 | `Time` | Timestamp of the logon event |
 | `UserName` | Account name that logged on (or attempted to) |
 | `TargetDomainName` | Domain of the target account |
-| `LogonType` | Logon type (e.g., 3 = Network, 10 = RemoteInteractive) |
+| `LogonType` | Logon type enriched with description (e.g., `3 (Network)`, `10 (RemoteInteractive)`) — see [Logon Types Reference](#logon-types-reference) |
 | `LogonProcessName` | Logon process (`NtLmSsp` = direct NTLM, `Negotiate` = SPNEGO negotiation) |
 | `AuthenticationPackageName` | Auth package used (`NTLM` = direct, `Negotiate` = Kerberos attempted first → fell back to NTLM) |
 | `WorkstationName` | Name of the source workstation |
@@ -796,6 +797,7 @@ Invoke-Pester -Path .\Tests\Get-NtlmLogonEvents.Tests.ps1 -Output Detailed
 
 | Version | Date | Changes |
 |---|---|---|
+| 4.6 | 2026-03-04 | Enriched `LogonType` output with human-readable descriptions — now shows `3 (Network)` instead of just `3`. Covers all standard logon types (0, 2–5, 7–13). Unknown types pass through unchanged. Applied in both local and remote (WinRM) code paths. Added comprehensive Pester tests for all logon type mappings. |
 | 4.5 | 2026-03-04 | Added `-IncludeMessage` switch — includes the full human-readable event `Message` text in output for both Security log events (4624/4625) and NTLM Operational log events (8001-8006/4001-4006). Useful for detailed forensic review or exporting human-readable event descriptions. |
 | 4.4 | 2026-03-03 | `-ExcludeNullSessions` now also filters NTLM Operational log events (8001-8006/4001-4006) where UserName is empty or `(NULL)` — i.e. anonymous/null-credential NTLM probes (e.g. SMB null sessions, DFS referrals, GPO processing by IP). Previously the switch only applied to Security log events (4624/4625). Updated help text accordingly. |
 | 4.3 | 2026-03-03 | Fixed misleading `Write-Error` when no NTLM events exist on domain controllers — now emits a clear `Write-Warning` instead (matching localhost/remote-host behavior). Fixed `Cannot index into a null array` crash in NTLM Operational log parsing when event `Properties` collection is null or empty — added null guards in both `Convert-NtlmOperationalEventToObject` and the remote script block, with safe per-index bounds checks. |

@@ -259,7 +259,7 @@
 
     .NOTES
     Author:  Jan Tiedemann
-    Version: 4.5
+    Version: 4.6
     Requires: PowerShell 5.1+, elevated privileges to read Security log.
     For remote targets: WinRM must be enabled (winrm quickconfig).
     For DCs/Forest target: ActiveDirectory PowerShell module required.
@@ -411,6 +411,22 @@ function Convert-EventToObject {
       '%%1834' = 'Delegation'
     }
 
+    # Map LogonType numeric values to human-readable descriptions
+    $logonTypeMap = @{
+      0  = 'System'
+      2  = 'Interactive'
+      3  = 'Network'
+      4  = 'Batch'
+      5  = 'Service'
+      7  = 'Unlock'
+      8  = 'NetworkCleartext'
+      9  = 'NewCredentials'
+      10 = 'RemoteInteractive'
+      11 = 'CachedInteractive'
+      12 = 'CachedRemoteInteractive'
+      13 = 'CachedUnlock'
+    }
+
     # Detect event type — 4624 and 4625 have different property layouts
     $eventId = $Event.Id
     $isFailed = ($eventId -eq 4625)
@@ -453,6 +469,15 @@ function Convert-EventToObject {
       else {
         $rawImpersonation
       }
+    }
+
+    # Enrich LogonType with human-readable name
+    $rawLogonType = $logonType -as [int]
+    $logonType = if ($logonTypeMap.ContainsKey($rawLogonType)) {
+      "$rawLogonType ($($logonTypeMap[$rawLogonType]))"
+    }
+    else {
+      $logonType
     }
 
     [PSCustomObject]@{
@@ -1123,6 +1148,21 @@ $remoteScriptBlock = {
       '%%1834' = 'Delegation'
     }
 
+    $logonTypeMap = @{
+      0  = 'System'
+      2  = 'Interactive'
+      3  = 'Network'
+      4  = 'Batch'
+      5  = 'Service'
+      7  = 'Unlock'
+      8  = 'NetworkCleartext'
+      9  = 'NewCredentials'
+      10 = 'RemoteInteractive'
+      11 = 'CachedInteractive'
+      12 = 'CachedRemoteInteractive'
+      13 = 'CachedUnlock'
+    }
+
     $eventId = $Event.Id
     $isFailed = ($eventId -eq 4625)
 
@@ -1162,6 +1202,14 @@ $remoteScriptBlock = {
       else {
         $rawImpersonation
       }
+    }
+
+    $rawLogonType = $logonType -as [int]
+    $logonType = if ($logonTypeMap.ContainsKey($rawLogonType)) {
+      "$rawLogonType ($($logonTypeMap[$rawLogonType]))"
+    }
+    else {
+      $logonType
     }
 
     [PSCustomObject]@{
