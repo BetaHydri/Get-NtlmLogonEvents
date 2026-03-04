@@ -1586,3 +1586,111 @@ Describe 'Merge-PrivilegedLogonData' {
         }
     }
 }
+
+Describe 'Realistic Scenario: Domain Admin NTLM logon from VPN client' {
+
+    It 'Should correctly parse a CONTOSO\Administrator NTLMv2 logon from VPN01 (172.16.1.10) on DC01' {
+        # Simulate a real-world 4624 event: domain admin authenticates via NTLM from a VPN client
+        $timestamp = [datetime]'2026-03-04 04:51:15'
+
+        $props = @(
+            [PSCustomObject]@{ Value = 'S-1-0-0' }                                    # [0]  SubjectUserSid
+            [PSCustomObject]@{ Value = '-' }                                            # [1]  SubjectUserName
+            [PSCustomObject]@{ Value = '-' }                                            # [2]  SubjectDomainName
+            [PSCustomObject]@{ Value = '0x0' }                                          # [3]  SubjectLogonId
+            [PSCustomObject]@{ Value = 'S-1-5-21-1234567890-1234567890-1234567890-500' }# [4]  TargetUserSid (built-in Administrator RID 500)
+            [PSCustomObject]@{ Value = 'Administrator' }                                # [5]  TargetUserName
+            [PSCustomObject]@{ Value = 'CONTOSO' }                                      # [6]  TargetDomainName
+            [PSCustomObject]@{ Value = '12255534' }                                     # [7]  TargetLogonId
+            [PSCustomObject]@{ Value = 3 }                                              # [8]  LogonType (Network)
+            [PSCustomObject]@{ Value = 'NtLmSsp' }                                     # [9]  LogonProcessName
+            [PSCustomObject]@{ Value = 'NTLM' }                                        # [10] AuthenticationPackageName
+            [PSCustomObject]@{ Value = 'VPN01' }                                        # [11] WorkstationName
+            [PSCustomObject]@{ Value = '{00000000-0000-0000-0000-000000000000}' }       # [12] LogonGuid
+            [PSCustomObject]@{ Value = '-' }                                            # [13] TransmittedServices
+            [PSCustomObject]@{ Value = 'NTLM V2' }                                     # [14] LmPackageName
+            [PSCustomObject]@{ Value = 128 }                                            # [15] KeyLength
+            [PSCustomObject]@{ Value = '0x0' }                                          # [16] ProcessId
+            [PSCustomObject]@{ Value = '-' }                                            # [17] ProcessName
+            [PSCustomObject]@{ Value = '172.16.1.10' }                                  # [18] IpAddress
+            [PSCustomObject]@{ Value = 0 }                                              # [19] IpPort
+            [PSCustomObject]@{ Value = '%%1833' }                                       # [20] ImpersonationLevel
+        )
+
+        $mockEvent = [PSCustomObject]@{
+            Id          = 4624
+            TimeCreated = $timestamp
+            Properties  = $props
+            Message     = 'An account was successfully logged on.'
+        }
+        $mockEvent.PSObject.TypeNames.Insert(0, 'System.Diagnostics.Eventing.Reader.EventLogRecord')
+
+        $result = Convert-EventToObject -Event $mockEvent -ComputerName 'DC01'
+
+        $result.EventId                   | Should -Be 4624
+        $result.Time                      | Should -Be $timestamp
+        $result.UserName                  | Should -Be 'Administrator'
+        $result.TargetDomainName          | Should -Be 'CONTOSO'
+        $result.LogonType                 | Should -Be 3
+        $result.LogonProcessName          | Should -Be 'NtLmSsp'
+        $result.AuthenticationPackageName | Should -Be 'NTLM'
+        $result.WorkstationName           | Should -Be 'VPN01'
+        $result.LmPackageName             | Should -Be 'NTLM V2'
+        $result.IPAddress                 | Should -Be '172.16.1.10'
+        $result.TCPPort                   | Should -Be 0
+        $result.ImpersonationLevel        | Should -Be 'Impersonation'
+        $result.ProcessName               | Should -Be '-'
+        $result.Status                    | Should -BeNullOrEmpty
+        $result.FailureReason             | Should -BeNullOrEmpty
+        $result.SubStatus                 | Should -BeNullOrEmpty
+        $result.TargetLogonId             | Should -Be '12255534'
+        $result.ComputerName              | Should -Be 'DC01'
+    }
+
+    It 'Should identify the VPN logon as privileged when correlated with Event ID 4672' {
+        $timestamp = [datetime]'2026-03-04 04:51:15'
+
+        # Build the 4624 result object as Merge-PrivilegedLogonData expects
+        $logonEvent = [PSCustomObject]@{
+            PSTypeName                = 'NtlmLogonEvent'
+            EventId                   = 4624
+            Time                      = $timestamp
+            UserName                  = 'Administrator'
+            TargetDomainName          = 'CONTOSO'
+            LogonType                 = 3
+            LogonProcessName          = 'NtLmSsp'
+            AuthenticationPackageName = 'NTLM'
+            WorkstationName           = 'VPN01'
+            LmPackageName             = 'NTLM V2'
+            IPAddress                 = '172.16.1.10'
+            TCPPort                   = 0
+            ImpersonationLevel        = 'Impersonation'
+            ProcessName               = '-'
+            Status                    = $null
+            FailureReason             = $null
+            SubStatus                 = $null
+            TargetLogonId             = '12255534'
+            ComputerName              = 'DC01'
+        }
+
+        $privilegeList = 'SeSecurityPrivilege
+		SeBackupPrivilege
+		SeRestorePrivilege
+		SeTakeOwnershipPrivilege
+		SeDebugPrivilege
+		SeSystemEnvironmentPrivilege
+		SeLoadDriverPrivilege
+		SeImpersonatePrivilege
+		SeEnableDelegationPrivilege'
+
+        Mock Get-PrivilegedLogonLookup {
+            return @{ '12255534' = $privilegeList }
+        }
+
+        Merge-PrivilegedLogonData -Events @($logonEvent)
+
+        $logonEvent.IsPrivileged  | Should -BeTrue
+        $logonEvent.PrivilegeList | Should -Match 'SeDebugPrivilege'
+        $logonEvent.PrivilegeList | Should -Match 'SeBackupPrivilege'
+    }
+}
