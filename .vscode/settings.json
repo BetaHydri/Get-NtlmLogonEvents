@@ -1,0 +1,12 @@
+{
+  // Pester test runner settings — prevent VS Code freeze
+  "powershell.pester.useLegacyCodeLens": false,
+  "powershell.pester.outputVerbosity": "Normal",
+
+  // Disable automatic test discovery/run to prevent background freezes
+  "testing.autoRun.mode": "off",
+
+  // Run tests in a dedicated terminal instead of the Extension Terminal (PSIC)
+  // This prevents the language server from being blocked during test execution
+  "powershell.pester.codeLens": false
+}
