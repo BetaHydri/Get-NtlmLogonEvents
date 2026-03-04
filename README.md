@@ -93,23 +93,33 @@ cd Get-NtlmLogonEvents
 
 ## Parameters
 
-| Parameter | Type | Default | Parameter Sets | Description |
-|---|---|---|---|---|
-| `-Target` | String | `Localhost` | Default, AuditConfig | Target scope: `Localhost`, `DCs` (domain controllers), or `Forest` (all DCs across the AD forest). Constrained by `ValidateSet`. |
-| `-ComputerName` | String[] | — | ComputerName, AuditConfigComputerName | One or more specific remote host(s) to query. Mandatory in its parameter sets. |
-| `-NumEvents` | Int | `30` | Default, ComputerName | Maximum number of events to return per host |
-| `-OnlyNTLMv1` | Switch | Off | Default, ComputerName | Return only NTLMv1 events (default: all NTLM versions) |
-| `-ExcludeNullSessions` | Switch | Off | Default, ComputerName | Filter out ANONYMOUS LOGON (null session) events from Security log and null-credential events from NTLM Operational log |
-| `-IncludeFailedLogons` | Switch | Off | Default, ComputerName | Also query failed logon attempts (Event ID 4625) |
-| `-CorrelatePrivileged` | Switch | Off | Default, ComputerName | Correlate with Event ID 4672 to identify privileged NTLM logon sessions |
-| `-IncludeNtlmOperationalLog` | Switch | Off | Default, ComputerName | Also query `Microsoft-Windows-NTLM/Operational` log (events 8001-8006 audit + 4001-4006 block) |
-| `-CheckAuditConfig` | Switch | — | AuditConfig, AuditConfigComputerName | Check NTLM audit/restriction GPO registry settings (standalone mode — no event queries). Mandatory in its parameter sets. |
-| `-IncludeMessage` | Switch | Off | Default, ComputerName | Include the full event `Message` text in the output for both Security log (4624/4625) and NTLM Operational log events. Useful for forensic review or human-readable export. |
-| `-Domain` | String | — | Default, AuditConfig | AD domain to query when using `-Target DCs` (passed as `-Server` to `Get-ADDomainController`). **Without `-Domain`, DCs are discovered from the current user's domain** (`$env:USERDNSDOMAIN`), not the machine's domain. In cross-domain scenarios (user from domain A logged onto a machine in domain B), you must specify `-Domain` explicitly to target the correct domain's DCs. Not used with `-Target Forest`. |
-| `-StartTime` | DateTime | — | Default, ComputerName | Only return events after this date/time |
-| `-EndTime` | DateTime | — | Default, ComputerName | Only return events before this date/time |
-| `-Authentication` | String | — | All | WinRM authentication mechanism: `Default`, `Negotiate`, `Kerberos`, or `NegotiateWithImplicitCredential`. Use `Negotiate` when Kerberos is unavailable (workgroup, clock skew, missing SPNs). Works with or without `-Credential`. |
-| `-Credential` | PSCredential | — | All | Alternate credentials for remote connections |
+| Parameter | Type | Default | Description |
+|---|---|---|---|
+| `-Target` | String | `Localhost` | Scope: `Localhost`, `DCs`, or `Forest` |
+| `-ComputerName` | String[] | — | Remote host(s) to query (mandatory in its sets) |
+| `-NumEvents` | Int | `30` | Max events to return per host |
+| `-OnlyNTLMv1` | Switch | Off | Return only NTLMv1 events |
+| `-ExcludeNullSessions` | Switch | Off | Filter out ANONYMOUS LOGON / null sessions |
+| `-IncludeFailedLogons` | Switch | Off | Include failed logons (Event ID 4625) |
+| `-CorrelatePrivileged` | Switch | Off | Cross-reference Event ID 4672 for privileged sessions |
+| `-IncludeNtlmOperationalLog` | Switch | Off | Query NTLM Operational log (8001–8006 / 4001–4006) |
+| `-CheckAuditConfig` | Switch | — | Check NTLM audit GPO settings (standalone mode) |
+| `-IncludeMessage` | Switch | Off | Include full event `Message` text in output |
+| `-Domain` | String | — | AD domain for `-Target DCs` (see note below) |
+| `-StartTime` | DateTime | — | Only return events after this date/time |
+| `-EndTime` | DateTime | — | Only return events before this date/time |
+| `-Authentication` | String | — | WinRM auth: `Default`, `Negotiate`, `Kerberos`, `NegotiateWithImplicitCredential` |
+| `-Credential` | PSCredential | — | Alternate credentials for remote connections |
+
+#### Parameter Details
+
+- **`-Target`** — `Localhost` queries the local machine. `DCs` enumerates all domain controllers via `Get-ADDomainController` (requires the ActiveDirectory module). `Forest` queries all DCs across every domain in the AD forest.
+- **`-Domain`** — Passed as `-Server` to `Get-ADDomainController` when using `-Target DCs`. **Without `-Domain`, DCs are discovered from the current user's domain** (`$env:USERDNSDOMAIN`), not the machine's domain. In cross-domain scenarios (e.g., user from domain A logged onto a machine joined to domain B), you must specify `-Domain` explicitly to target the correct domain's DCs. Not used with `-Target Forest`.
+- **`-ExcludeNullSessions`** — Filters out ANONYMOUS LOGON events from the Security log and null-credential events (`(NULL)` UserName) from the NTLM Operational log.
+- **`-IncludeNtlmOperationalLog`** — Queries the `Microsoft-Windows-NTLM/Operational` log for audit events (8001–8006) and block events (4001–4006). Requires NTLM auditing GPO policies to be configured first (see [Prerequisites for NTLM Operational Log](#prerequisites-for-ntlm-operational-log)).
+- **`-CheckAuditConfig`** — Standalone mode that reads NTLM-related registry values and reports each policy's state against [Microsoft's recommended settings](https://techcommunity.microsoft.com/blog/coreinfrastructureandsecurityblog/active-directory-hardening-series---part-8-%E2%80%93-disabling-ntlm/4485782). No event log queries are performed.
+- **`-IncludeMessage`** — Adds the human-readable `Message` property to output objects for both Security log and NTLM Operational log events. Useful for forensic review or export.
+- **`-Authentication`** — Use `Negotiate` when Kerberos is unavailable (workgroup machines, clock skew, missing SPNs). Works with or without `-Credential`.
 
 ### Parameter Sets
 
