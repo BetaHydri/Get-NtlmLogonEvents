@@ -38,6 +38,7 @@ This script exposes both `AuthenticationPackageName` and `LogonProcessName` so y
 - Alternate credential support for remote connections
 - **Query NTLM Operational log** — `-IncludeNtlmOperationalLog` queries the `Microsoft-Windows-NTLM/Operational` log for audit events (8001-8006) and block events (4001-4006) that capture process names, target server SPNs, and secure channel names
 - **Check NTLM audit configuration** — `-CheckAuditConfig` reads the relevant registry values and reports whether recommended NTLM auditing GPO settings are enabled ([reference](https://techcommunity.microsoft.com/blog/coreinfrastructureandsecurityblog/active-directory-hardening-series---part-8-%E2%80%93-disabling-ntlm/4485782))
+- **Include full event message text** — `-IncludeMessage` adds the human-readable `Message` property to output objects for both Security log and NTLM Operational log events, useful for forensic review or export
 - Translates impersonation level codes (`%%1831`–`%%1834`) to human-readable names (see [Impersonation Levels Reference](#impersonation-levels-reference))
 - Outputs structured `PSCustomObject` — pipeable to `Export-Csv`, `ConvertTo-Json`, `Format-Table`, etc.
 
@@ -102,6 +103,7 @@ cd Get-NtlmLogonEvents
 | `-CorrelatePrivileged` | Switch | Off | Default, ComputerName | Correlate with Event ID 4672 to identify privileged NTLM logon sessions |
 | `-IncludeNtlmOperationalLog` | Switch | Off | Default, ComputerName | Also query `Microsoft-Windows-NTLM/Operational` log (events 8001-8006 audit + 4001-4006 block) |
 | `-CheckAuditConfig` | Switch | — | AuditConfig, AuditConfigComputerName | Check NTLM audit/restriction GPO registry settings (standalone mode — no event queries). Mandatory in its parameter sets. |
+| `-IncludeMessage` | Switch | Off | Default, ComputerName | Include the full event `Message` text in the output for both Security log (4624/4625) and NTLM Operational log events. Useful for forensic review or human-readable export. |
 | `-Domain` | String | — | Default, AuditConfig | AD domain to query when using `-Target DCs` (passed as `-Server` to `Get-ADDomainController`). Not used with `-Target Forest`. |
 | `-StartTime` | DateTime | — | Default, ComputerName | Only return events after this date/time |
 | `-EndTime` | DateTime | — | Default, ComputerName | Only return events before this date/time |
@@ -157,6 +159,12 @@ cd Get-NtlmLogonEvents
 
 # Verbose output for troubleshooting
 .\Get-NtlmLogonEvents.ps1 -Target DCs -Verbose
+
+# Include the full event Message text (human-readable event description)
+.\Get-NtlmLogonEvents.ps1 -IncludeMessage
+
+# Include Message text from both Security log and NTLM Operational log events
+.\Get-NtlmLogonEvents.ps1 -IncludeNtlmOperationalLog -IncludeMessage | Format-List
 ```
 
 ### Filtering with Script Parameters
@@ -571,6 +579,7 @@ ComputerName  : DC01
 | `TargetLogonId` | Logon session ID (4624 only) — used for correlation with Event ID 4672 |
 | `IsPrivileged` | Whether the logon session received special privileges (only with `-CorrelatePrivileged`) |
 | `PrivilegeList` | Privileges assigned to the logon session (only with `-CorrelatePrivileged`) |
+| `Message` | Full human-readable event description rendered by Windows (only with `-IncludeMessage`) |
 | `ComputerName` | Computer where the event was logged |
 
 ### NTLM Operational Event Fields (with `-IncludeNtlmOperationalLog`)
@@ -588,6 +597,7 @@ ComputerName  : DC01
 | `SecureChannelName` | Server being authenticated to via secure channel (8004-8006/4004-4006, DC events) |
 | `ProcessName` | Process name initiating or receiving NTLM (8001-8003/4001-4003) |
 | `ProcessId` | Process ID (8001-8003/4001-4003) |
+| `Message` | Full human-readable event description rendered by Windows (only with `-IncludeMessage`) |
 | `ComputerName` | Computer where the event was logged |
 
 ### Audit Configuration Fields (with `-CheckAuditConfig`)
@@ -786,6 +796,7 @@ Invoke-Pester -Path .\Tests\Get-NtlmLogonEvents.Tests.ps1 -Output Detailed
 
 | Version | Date | Changes |
 |---|---|---|
+| 4.5 | 2026-03-04 | Added `-IncludeMessage` switch — includes the full human-readable event `Message` text in output for both Security log events (4624/4625) and NTLM Operational log events (8001-8006/4001-4006). Useful for detailed forensic review or exporting human-readable event descriptions. |
 | 4.4 | 2026-03-03 | `-ExcludeNullSessions` now also filters NTLM Operational log events (8001-8006/4001-4006) where UserName is empty or `(NULL)` — i.e. anonymous/null-credential NTLM probes (e.g. SMB null sessions, DFS referrals, GPO processing by IP). Previously the switch only applied to Security log events (4624/4625). Updated help text accordingly. |
 | 4.3 | 2026-03-03 | Fixed misleading `Write-Error` when no NTLM events exist on domain controllers — now emits a clear `Write-Warning` instead (matching localhost/remote-host behavior). Fixed `Cannot index into a null array` crash in NTLM Operational log parsing when event `Properties` collection is null or empty — added null guards in both `Convert-NtlmOperationalEventToObject` and the remote script block, with safe per-index bounds checks. |
 | 4.2 | 2026-02-26 | `-Target Forest` now queries each domain's DCs separately instead of batching all forest DCs into a single `Invoke-Command` call; if one domain's DCs are unreachable (e.g. WinRM/DNS failure), the script emits a warning and continues with the remaining domains instead of failing entirely. Applies to event queries, NTLM operational log queries, and `-CheckAuditConfig`. |

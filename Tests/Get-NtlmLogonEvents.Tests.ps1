@@ -203,6 +203,7 @@ Describe 'Convert-EventToObject' {
                 Id          = 4624
                 TimeCreated = $TimeCreated
                 Properties  = $props
+                Message     = 'An account was successfully logged on.'
             }
 
             # Add the type name so it satisfies type checks when cast loosely
@@ -323,7 +324,7 @@ Describe 'Convert-EventToObject' {
                 'LogonProcessName', 'AuthenticationPackageName', 'WorkstationName',
                 'LmPackageName', 'IPAddress', 'TCPPort',
                 'ImpersonationLevel', 'ProcessName', 'Status', 'FailureReason',
-                'SubStatus', 'TargetLogonId', 'ComputerName'
+                'SubStatus', 'TargetLogonId', 'Message', 'ComputerName'
             )
 
             foreach ($prop in $expectedProps) {
@@ -367,6 +368,12 @@ Describe 'Convert-EventToObject' {
             $event = New-MockEvent
             $result = Convert-EventToObject -Event $event -ComputerName 'SRV01'
             $result.AuthenticationPackageName | Should -Be 'NTLM'
+        }
+
+        It 'Should include Message from the event' {
+            $event = New-MockEvent
+            $result = Convert-EventToObject -Event $event -ComputerName 'SRV01'
+            $result.Message | Should -Be 'An account was successfully logged on.'
         }
     }
 
@@ -412,7 +419,7 @@ Describe 'Convert-EventToObject' {
                 [PSCustomObject]@{ Value = 49832 }                # [19] IpPort
                 [PSCustomObject]@{ Value = '%%1833' }             # [20] ImpersonationLevel
             )
-            $event = [PSCustomObject]@{ Id = 4624; TimeCreated = (Get-Date); Properties = $props }
+            $event = [PSCustomObject]@{ Id = 4624; TimeCreated = (Get-Date); Properties = $props; Message = 'An account was successfully logged on.' }
             $event.PSObject.TypeNames.Insert(0, 'System.Diagnostics.Eventing.Reader.EventLogRecord')
 
             $result = Convert-EventToObject -Event $event -ComputerName 'SRV01'
@@ -479,6 +486,7 @@ Describe 'Convert-EventToObject (Event ID 4625 - Failed Logon)' {
                 Id          = 4625
                 TimeCreated = $TimeCreated
                 Properties  = $props
+                Message     = 'An account failed to log on.'
             }
             $mockEvent.PSObject.TypeNames.Insert(0, 'System.Diagnostics.Eventing.Reader.EventLogRecord')
             return $mockEvent
@@ -611,7 +619,7 @@ Describe 'Convert-EventToObject (Event ID 4625 - Failed Logon)' {
                     [PSCustomObject]@{ Value = 49832 }
                     [PSCustomObject]@{ Value = '%%1833' }
                 )
-                $e = [PSCustomObject]@{ Id = 4624; TimeCreated = (Get-Date); Properties = $props }
+                $e = [PSCustomObject]@{ Id = 4624; TimeCreated = (Get-Date); Properties = $props; Message = 'An account was successfully logged on.' }
                 $e.PSObject.TypeNames.Insert(0, 'System.Diagnostics.Eventing.Reader.EventLogRecord')
                 return $e
             }
@@ -691,6 +699,10 @@ Describe 'Get-NtlmLogonEvents.ps1 Script Parameters' {
 
         It 'Should have IncludeNtlmOperationalLog as a switch' {
             $command.Parameters['IncludeNtlmOperationalLog'].SwitchParameter | Should -BeTrue
+        }
+
+        It 'Should have IncludeMessage as a switch' {
+            $command.Parameters['IncludeMessage'].SwitchParameter | Should -BeTrue
         }
 
         It 'Should have Domain parameter of type String' {
@@ -783,7 +795,8 @@ Describe 'Get-NtlmLogonEvents.ps1 Script Parameters' {
         It 'Should NOT have event-only parameters in AuditConfig sets' {
             $eventOnlyParams = @('NumEvents', 'ExcludeNullSessions', 'OnlyNTLMv1',
                                  'IncludeFailedLogons', 'CorrelatePrivileged',
-                                 'IncludeNtlmOperationalLog', 'StartTime', 'EndTime')
+                                 'IncludeNtlmOperationalLog', 'IncludeMessage',
+                                 'StartTime', 'EndTime')
             foreach ($paramName in $eventOnlyParams) {
                 $paramSets = $command.Parameters[$paramName].Attributes |
                     Where-Object { $_ -is [System.Management.Automation.ParameterAttribute] } |
@@ -867,6 +880,7 @@ Describe 'Get-NtlmLogonEvents.ps1 Script Execution (mocked)' {
                     Id          = 4624
                     TimeCreated = [datetime]'2026-02-25 10:00:00'
                     Properties  = $mockProps
+                    Message     = 'An account was successfully logged on.'
                 }
                 $evt.PSObject.TypeNames.Insert(0, 'System.Diagnostics.Eventing.Reader.EventLogRecord')
                 return $evt
@@ -952,6 +966,7 @@ Describe 'Script file quality' {
         $scriptContent | Should -Match '\.PARAMETER Authentication'
         $scriptContent | Should -Match '\.PARAMETER CheckAuditConfig'
         $scriptContent | Should -Match '\.PARAMETER IncludeNtlmOperationalLog'
+        $scriptContent | Should -Match '\.PARAMETER IncludeMessage'
         $scriptContent | Should -Match '\.PARAMETER ComputerName'
     }
 

@@ -149,6 +149,17 @@
 
     Gets only the NTLM operational log events (includes process-level detail that 4624 lacks).
 
+    .EXAMPLE
+    .\Get-NtlmLogonEvents.ps1 -IncludeMessage
+
+    Gets the last 30 NTLM logon events and includes the full event Message text in the output.
+    Useful for detailed forensic review or exporting human-readable event descriptions.
+
+    .EXAMPLE
+    .\Get-NtlmLogonEvents.ps1 -IncludeNtlmOperationalLog -IncludeMessage | Format-List
+
+    Includes the Message text from both Security log and NTLM Operational log events.
+
     .PARAMETER NumEvents
     Maximum number of events to return per host. Default is 30.
     Only available in event query mode (Default and ComputerName parameter sets).
@@ -232,6 +243,12 @@
     (see -CheckAuditConfig). When -ExcludeNullSessions is also specified, null-credential
     operational events (UserName empty or '(NULL)') are filtered out.
 
+    .PARAMETER IncludeMessage
+    When specified, includes the full event Message text in the output for both Security log
+    events (4624/4625) and NTLM Operational log events (8001-8006, 4001-4006). The Message
+    property contains the human-readable event description rendered by Windows.
+    By default, Message is omitted to keep output compact.
+
     .LINK
     TechNet - The Most Misunderstood Windows Security Setting of All Time
     http://technet.microsoft.com/en-us/magazine/2006.08.securitywatch.aspx
@@ -242,7 +259,7 @@
 
     .NOTES
     Author:  Jan Tiedemann
-    Version: 4.4
+    Version: 4.5
     Requires: PowerShell 5.1+, elevated privileges to read Security log.
     For remote targets: WinRM must be enabled (winrm quickconfig).
     For DCs/Forest target: ActiveDirectory PowerShell module required.
@@ -294,6 +311,10 @@ param(
   [Parameter(ParameterSetName = 'Default')]
   [Parameter(ParameterSetName = 'ComputerName')]
   [switch]$IncludeNtlmOperationalLog,
+
+  [Parameter(ParameterSetName = 'Default')]
+  [Parameter(ParameterSetName = 'ComputerName')]
+  [switch]$IncludeMessage,
 
   [Parameter(ParameterSetName = 'Default')]
   [Parameter(ParameterSetName = 'AuditConfig')]
@@ -453,6 +474,7 @@ function Convert-EventToObject {
       FailureReason             = $failureReason
       SubStatus                 = $subStatus
       TargetLogonId             = $targetLogonId
+      Message                   = $Event.Message
       ComputerName              = $ComputerName
     }
   }
@@ -1078,6 +1100,9 @@ $outputProperties = @(
 if ($CorrelatePrivileged) {
   $outputProperties += 'IsPrivileged', 'PrivilegeList'
 }
+if ($IncludeMessage) {
+  $outputProperties += 'Message'
+}
 $outputProperties += 'ComputerName'
 
 # Build the remote script block (shared for DCs and single remote host)
@@ -1157,6 +1182,7 @@ $remoteScriptBlock = {
       FailureReason             = $failureReason
       SubStatus                 = $subStatus
       TargetLogonId             = $targetLogonId
+      Message                   = $Event.Message
       ComputerName              = $env:COMPUTERNAME
     }
   }
@@ -1236,8 +1262,12 @@ if ($IncludeNtlmOperationalLog) {
   $ntlmOpOutputProperties = @(
     'EventId', 'EventType', 'EventDescription', 'Time',
     'UserName', 'DomainName', 'TargetName', 'WorkstationName',
-    'SecureChannelName', 'ProcessName', 'ProcessId', 'Message', 'ComputerName'
+    'SecureChannelName', 'ProcessName', 'ProcessId'
   )
+  if ($IncludeMessage) {
+    $ntlmOpOutputProperties += 'Message'
+  }
+  $ntlmOpOutputProperties += 'ComputerName'
 
   # Remote script block for NTLM Operational log queries
   $ntlmOpRemoteScriptBlock = {
