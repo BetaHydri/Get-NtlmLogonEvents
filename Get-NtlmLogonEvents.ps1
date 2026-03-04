@@ -607,6 +607,9 @@ function Convert-NtlmOperationalEventToObject {
       4006 = 'Cross-domain NTLM authentication blocked (domain controller)'
     }
 
+    # Capture the event message text (contains policy guidance from Windows)
+    $messageText = $Event.Message
+
     switch ($baseId) {
       # 8001/4001: Client outgoing — TargetName[0], UserName[1], DomainName[2], CallerPID[3], ProcessName[4]
       8001 {
@@ -623,6 +626,7 @@ function Convert-NtlmOperationalEventToObject {
           SecureChannelName = $null
           ProcessName       = if ($props.Count -gt 4) { $props[4].Value } else { $null }
           ProcessId         = if ($props.Count -gt 3) { $props[3].Value } else { $null }
+          Message           = $messageText
           ComputerName      = $ComputerName
         }
       }
@@ -641,6 +645,7 @@ function Convert-NtlmOperationalEventToObject {
           SecureChannelName = $null
           ProcessName       = if ($props.Count -gt 1) { $props[1].Value } else { $null }
           ProcessId         = if ($props.Count -gt 0) { $props[0].Value } else { $null }
+          Message           = $messageText
           ComputerName      = $ComputerName
         }
       }
@@ -659,6 +664,7 @@ function Convert-NtlmOperationalEventToObject {
           SecureChannelName = $null
           ProcessName       = if ($props.Count -gt 4) { $props[4].Value } else { $null }
           ProcessId         = if ($props.Count -gt 3) { $props[3].Value } else { $null }
+          Message           = $messageText
           ComputerName      = $ComputerName
         }
       }
@@ -677,6 +683,7 @@ function Convert-NtlmOperationalEventToObject {
           SecureChannelName = if ($props.Count -gt 0) { $props[0].Value } else { $null }
           ProcessName       = $null
           ProcessId         = $null
+          Message           = $messageText
           ComputerName      = $ComputerName
         }
       }
@@ -1229,7 +1236,7 @@ if ($IncludeNtlmOperationalLog) {
   $ntlmOpOutputProperties = @(
     'EventId', 'EventType', 'EventDescription', 'Time',
     'UserName', 'DomainName', 'TargetName', 'WorkstationName',
-    'SecureChannelName', 'ProcessName', 'ProcessId', 'ComputerName'
+    'SecureChannelName', 'ProcessName', 'ProcessId', 'Message', 'ComputerName'
   )
 
   # Remote script block for NTLM Operational log queries
@@ -1275,6 +1282,7 @@ if ($IncludeNtlmOperationalLog) {
               SecureChannelName = $null
               ProcessName       = if ($p.Count -gt 3) { $p[3].Value } else { $null }
               ProcessId         = if ($p.Count -gt 4) { $p[4].Value } else { $null }
+              Message           = $_.Message
               ComputerName      = $env:COMPUTERNAME
             }
           }
@@ -1291,6 +1299,7 @@ if ($IncludeNtlmOperationalLog) {
               SecureChannelName = $null
               ProcessName       = if ($p.Count -gt 3) { $p[3].Value } else { $null }
               ProcessId         = if ($p.Count -gt 4) { $p[4].Value } else { $null }
+              Message           = $_.Message
               ComputerName      = $env:COMPUTERNAME
             }
           }
@@ -1307,6 +1316,7 @@ if ($IncludeNtlmOperationalLog) {
               SecureChannelName = if ($p.Count -gt 3) { $p[3].Value } else { $null }
               ProcessName       = $null
               ProcessId         = $null
+              Message           = $_.Message
               ComputerName      = $env:COMPUTERNAME
             }
           }

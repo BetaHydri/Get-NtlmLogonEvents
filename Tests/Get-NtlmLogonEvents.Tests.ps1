@@ -1061,6 +1061,7 @@ Describe 'Convert-NtlmOperationalEventToObject' {
                 Id          = $EventId
                 TimeCreated = $TimeCreated
                 Properties  = $Properties
+                Message     = "Mock NTLM operational event message for Event ID $EventId"
             }
             return $mockEvent
         }
@@ -1268,7 +1269,7 @@ Describe 'Convert-NtlmOperationalEventToObject' {
             $expectedProps = @(
                 'EventId', 'EventType', 'EventDescription', 'Time',
                 'UserName', 'DomainName', 'TargetName', 'WorkstationName',
-                'SecureChannelName', 'ProcessName', 'ProcessId', 'ComputerName'
+                'SecureChannelName', 'ProcessName', 'ProcessId', 'Message', 'ComputerName'
             )
             foreach ($prop in $expectedProps) {
                 $result.PSObject.Properties.Name | Should -Contain $prop
