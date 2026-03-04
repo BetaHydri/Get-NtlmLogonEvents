@@ -585,7 +585,7 @@ function Convert-NtlmOperationalEventToObject {
     }
 
     switch ($baseId) {
-      # 8001/4001: Client outgoing — TargetName[0], UserName[1], DomainName[2], ProcessName[3], ClientPID[4]
+      # 8001/4001: Client outgoing — TargetName[0], UserName[1], DomainName[2], CallerPID[3], ProcessName[4]
       8001 {
         [PSCustomObject]@{
           PSTypeName        = 'NtlmOperationalEvent'
@@ -598,13 +598,31 @@ function Convert-NtlmOperationalEventToObject {
           TargetName        = if ($props.Count -gt 0) { $props[0].Value } else { $null }
           WorkstationName   = $null
           SecureChannelName = $null
-          ProcessName       = if ($props.Count -gt 3) { $props[3].Value } else { $null }
-          ProcessId         = if ($props.Count -gt 4) { $props[4].Value } else { $null }
+          ProcessName       = if ($props.Count -gt 4) { $props[4].Value } else { $null }
+          ProcessId         = if ($props.Count -gt 3) { $props[3].Value } else { $null }
           ComputerName      = $ComputerName
         }
       }
-      # 8002-8003/4002-4003: Server incoming — UserName[0], DomainName[1], WorkstationName[2], ProcessName[3], ProcessPID[4]
-      { $_ -in 8002, 8003 } {
+      # 8002/4002: Incoming NTLM (local/loopback) — CallerPID[0], ProcessName[1], ClientLUID[2], ClientUserName[3], ClientDomainName[4]
+      8002 {
+        [PSCustomObject]@{
+          PSTypeName        = 'NtlmOperationalEvent'
+          EventId           = $eventId
+          EventType         = $eventType
+          EventDescription  = $descMap[$eventId]
+          Time              = $Event.TimeCreated
+          UserName          = if ($props.Count -gt 3) { $props[3].Value } else { $null }
+          DomainName        = if ($props.Count -gt 4) { $props[4].Value } else { $null }
+          TargetName        = $null
+          WorkstationName   = $null
+          SecureChannelName = $null
+          ProcessName       = if ($props.Count -gt 1) { $props[1].Value } else { $null }
+          ProcessId         = if ($props.Count -gt 0) { $props[0].Value } else { $null }
+          ComputerName      = $ComputerName
+        }
+      }
+      # 8003/4003: Server incoming (domain account) — UserName[0], DomainName[1], Workstation[2], CallerPID[3], ProcessName[4]
+      8003 {
         [PSCustomObject]@{
           PSTypeName        = 'NtlmOperationalEvent'
           EventId           = $eventId
@@ -616,12 +634,12 @@ function Convert-NtlmOperationalEventToObject {
           TargetName        = $null
           WorkstationName   = if ($props.Count -gt 2) { $props[2].Value } else { $null }
           SecureChannelName = $null
-          ProcessName       = if ($props.Count -gt 3) { $props[3].Value } else { $null }
-          ProcessId         = if ($props.Count -gt 4) { $props[4].Value } else { $null }
+          ProcessName       = if ($props.Count -gt 4) { $props[4].Value } else { $null }
+          ProcessId         = if ($props.Count -gt 3) { $props[3].Value } else { $null }
           ComputerName      = $ComputerName
         }
       }
-      # 8004-8006/4004-4006: DC — UserName[0], DomainName[1], WorkstationName[2], SecureChannelName[3]
+      # 8004-8006/4004-4006: DC — SChannelName[0], UserName[1], DomainName[2], WorkstationName[3], SChannelType[4]
       { $_ -in 8004, 8005, 8006 } {
         [PSCustomObject]@{
           PSTypeName        = 'NtlmOperationalEvent'
@@ -629,11 +647,11 @@ function Convert-NtlmOperationalEventToObject {
           EventType         = $eventType
           EventDescription  = $descMap[$eventId]
           Time              = $Event.TimeCreated
-          UserName          = if ($props.Count -gt 0) { $props[0].Value } else { $null }
-          DomainName        = if ($props.Count -gt 1) { $props[1].Value } else { $null }
+          UserName          = if ($props.Count -gt 1) { $props[1].Value } else { $null }
+          DomainName        = if ($props.Count -gt 2) { $props[2].Value } else { $null }
           TargetName        = $null
-          WorkstationName   = if ($props.Count -gt 2) { $props[2].Value } else { $null }
-          SecureChannelName = if ($props.Count -gt 3) { $props[3].Value } else { $null }
+          WorkstationName   = if ($props.Count -gt 3) { $props[3].Value } else { $null }
+          SecureChannelName = if ($props.Count -gt 0) { $props[0].Value } else { $null }
           ProcessName       = $null
           ProcessId         = $null
           ComputerName      = $ComputerName
