@@ -427,6 +427,44 @@ function Convert-EventToObject {
       13 = 'CachedUnlock'
     }
 
+    # Map FailureReason replacement strings (%%23xx) to human-readable descriptions
+    $failureReasonMap = @{
+      '%%2304' = 'An error occurred during logon'
+      '%%2305' = 'The specified user account has expired'
+      '%%2306' = 'The NetLogon component is not active'
+      '%%2307' = 'Account locked out'
+      '%%2308' = 'The user has not been granted the requested logon type at this machine'
+      '%%2309' = 'The specified account password has expired'
+      '%%2310' = 'Account currently disabled'
+      '%%2311' = 'Account logon time restriction violation'
+      '%%2312' = 'User not allowed to logon at this computer'
+      '%%2313' = 'Unknown user name or bad password'
+    }
+
+    # Map common NTSTATUS codes (Status/SubStatus) to human-readable descriptions
+    $ntStatusMap = @{
+      '0xC000005E' = 'No logon servers available'
+      '0xC0000064' = 'User logon with misspelled or bad user account'
+      '0xC000006A' = 'User logon with misspelled or bad password'
+      '0xC000006D' = 'Logon failure: unknown user name or bad password'
+      '0xC000006E' = 'User logon with account restriction'
+      '0xC000006F' = 'User logon outside authorized hours'
+      '0xC0000070' = 'User logon from unauthorized workstation'
+      '0xC0000071' = 'User logon with expired password'
+      '0xC0000072' = 'User logon to account disabled by administrator'
+      '0xC00000DC' = 'SAM server is in the wrong state'
+      '0xC0000133' = 'Clocks between DC and other computer too far out of sync'
+      '0xC000015B' = 'The user has not been granted the requested logon type at this machine'
+      '0xC000018C' = 'The trust relationship between the primary domain and the trusted domain failed'
+      '0xC0000192' = 'NetLogon service was not started'
+      '0xC0000193' = 'User logon with expired account'
+      '0xC0000224' = 'User is required to change password at next logon'
+      '0xC0000225' = 'Windows bug — not a risk'
+      '0xC0000234' = 'User logon with account locked'
+      '0xC00002EE' = 'An error occurred during logon'
+      '0xC0000413' = 'Authentication Firewall — logon condition not met'
+    }
+
     # Detect event type — 4624 and 4625 have different property layouts
     $eventId = $Event.Id
     $isFailed = ($eventId -eq 4625)
@@ -478,6 +516,39 @@ function Convert-EventToObject {
     }
     else {
       $logonType
+    }
+
+    # Enrich FailureReason replacement string with human-readable text
+    if ($failureReason) {
+      $rawFailureReason = $failureReason -as [string]
+      $failureReason = if ($failureReasonMap.ContainsKey($rawFailureReason)) {
+        $failureReasonMap[$rawFailureReason]
+      }
+      else {
+        $rawFailureReason
+      }
+    }
+
+    # Enrich Status NTSTATUS code with human-readable description
+    if ($status) {
+      $rawStatus = $status -as [string]
+      $status = if ($ntStatusMap.ContainsKey($rawStatus)) {
+        "$rawStatus ($($ntStatusMap[$rawStatus]))"
+      }
+      else {
+        $rawStatus
+      }
+    }
+
+    # Enrich SubStatus NTSTATUS code with human-readable description
+    if ($subStatus) {
+      $rawSubStatus = $subStatus -as [string]
+      $subStatus = if ($ntStatusMap.ContainsKey($rawSubStatus)) {
+        "$rawSubStatus ($($ntStatusMap[$rawSubStatus]))"
+      }
+      else {
+        $rawSubStatus
+      }
     }
 
     [PSCustomObject]@{
@@ -1163,6 +1234,42 @@ $remoteScriptBlock = {
       13 = 'CachedUnlock'
     }
 
+    $failureReasonMap = @{
+      '%%2304' = 'An error occurred during logon'
+      '%%2305' = 'The specified user account has expired'
+      '%%2306' = 'The NetLogon component is not active'
+      '%%2307' = 'Account locked out'
+      '%%2308' = 'The user has not been granted the requested logon type at this machine'
+      '%%2309' = 'The specified account password has expired'
+      '%%2310' = 'Account currently disabled'
+      '%%2311' = 'Account logon time restriction violation'
+      '%%2312' = 'User not allowed to logon at this computer'
+      '%%2313' = 'Unknown user name or bad password'
+    }
+
+    $ntStatusMap = @{
+      '0xC000005E' = 'No logon servers available'
+      '0xC0000064' = 'User logon with misspelled or bad user account'
+      '0xC000006A' = 'User logon with misspelled or bad password'
+      '0xC000006D' = 'Logon failure: unknown user name or bad password'
+      '0xC000006E' = 'User logon with account restriction'
+      '0xC000006F' = 'User logon outside authorized hours'
+      '0xC0000070' = 'User logon from unauthorized workstation'
+      '0xC0000071' = 'User logon with expired password'
+      '0xC0000072' = 'User logon to account disabled by administrator'
+      '0xC00000DC' = 'SAM server is in the wrong state'
+      '0xC0000133' = 'Clocks between DC and other computer too far out of sync'
+      '0xC000015B' = 'The user has not been granted the requested logon type at this machine'
+      '0xC000018C' = 'The trust relationship between the primary domain and the trusted domain failed'
+      '0xC0000192' = 'NetLogon service was not started'
+      '0xC0000193' = 'User logon with expired account'
+      '0xC0000224' = 'User is required to change password at next logon'
+      '0xC0000225' = 'Windows bug — not a risk'
+      '0xC0000234' = 'User logon with account locked'
+      '0xC00002EE' = 'An error occurred during logon'
+      '0xC0000413' = 'Authentication Firewall — logon condition not met'
+    }
+
     $eventId = $Event.Id
     $isFailed = ($eventId -eq 4625)
 
@@ -1210,6 +1317,36 @@ $remoteScriptBlock = {
     }
     else {
       $logonType
+    }
+
+    if ($failureReason) {
+      $rawFailureReason = $failureReason -as [string]
+      $failureReason = if ($failureReasonMap.ContainsKey($rawFailureReason)) {
+        $failureReasonMap[$rawFailureReason]
+      }
+      else {
+        $rawFailureReason
+      }
+    }
+
+    if ($status) {
+      $rawStatus = $status -as [string]
+      $status = if ($ntStatusMap.ContainsKey($rawStatus)) {
+        "$rawStatus ($($ntStatusMap[$rawStatus]))"
+      }
+      else {
+        $rawStatus
+      }
+    }
+
+    if ($subStatus) {
+      $rawSubStatus = $subStatus -as [string]
+      $subStatus = if ($ntStatusMap.ContainsKey($rawSubStatus)) {
+        "$rawSubStatus ($($ntStatusMap[$rawSubStatus]))"
+      }
+      else {
+        $rawSubStatus
+      }
     }
 
     [PSCustomObject]@{
@@ -1726,9 +1863,9 @@ elseif ($PSBoundParameters.ContainsKey('ComputerName')) {
 # [4]    TargetUserSid              S-1-0-0
 # [5]    TargetUserName             jsmith
 # [6]    TargetDomainName           CONTOSO
-# [7]    Status                     0xC000006D  (top-level NTSTATUS code)
-# [8]    FailureReason              %%2313      (reason string replacement)
-# [9]    SubStatus                  0xC0000064  (detailed NTSTATUS code)
+# [7]    Status                     0xC000006D  (top-level NTSTATUS code, enriched to human-readable)
+# [8]    FailureReason              %%2313      (reason replacement string, resolved to text)
+# [9]    SubStatus                  0xC0000064  (detailed NTSTATUS code, enriched to human-readable)
 # [10]   LogonType                  3
 # [11]   LogonProcessName           NtLmSsp
 # [12]   AuthenticationPackageName  NTLM

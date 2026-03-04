@@ -622,22 +622,22 @@ Describe 'Convert-EventToObject (Event ID 4625 - Failed Logon)' {
             $result.ProcessName | Should -Be 'C:\Windows\System32\lsass.exe'
         }
 
-        It 'Should map Status from Properties[7]' {
+        It 'Should map and enrich Status from Properties[7]' {
             $event = New-MockFailedEvent -Status '0xC000006D'
             $result = Convert-EventToObject -Event $event -ComputerName 'SRV01'
-            $result.Status | Should -Be '0xC000006D'
+            $result.Status | Should -Be '0xC000006D (Logon failure: unknown user name or bad password)'
         }
 
-        It 'Should map FailureReason from Properties[8]' {
+        It 'Should map and enrich FailureReason from Properties[8]' {
             $event = New-MockFailedEvent -FailureReason '%%2313'
             $result = Convert-EventToObject -Event $event -ComputerName 'SRV01'
-            $result.FailureReason | Should -Be '%%2313'
+            $result.FailureReason | Should -Be 'Unknown user name or bad password'
         }
 
-        It 'Should map SubStatus from Properties[9]' {
+        It 'Should map and enrich SubStatus from Properties[9]' {
             $event = New-MockFailedEvent -SubStatus '0xC0000064'
             $result = Convert-EventToObject -Event $event -ComputerName 'SRV01'
-            $result.SubStatus | Should -Be '0xC0000064'
+            $result.SubStatus | Should -Be '0xC0000064 (User logon with misspelled or bad user account)'
         }
 
         It 'Should set ImpersonationLevel to null for failed logons' {
@@ -662,6 +662,76 @@ Describe 'Convert-EventToObject (Event ID 4625 - Failed Logon)' {
             $event = New-MockFailedEvent
             $result = Convert-EventToObject -Event $event -ComputerName 'SRV01'
             $result.AuthenticationPackageName | Should -Be 'NTLM'
+        }
+    }
+
+    Context 'FailureReason enrichment' {
+        It 'Should translate %%2307 to Account locked out' {
+            $event = New-MockFailedEvent -FailureReason '%%2307'
+            $result = Convert-EventToObject -Event $event -ComputerName 'SRV01'
+            $result.FailureReason | Should -Be 'Account locked out'
+        }
+
+        It 'Should translate %%2310 to Account currently disabled' {
+            $event = New-MockFailedEvent -FailureReason '%%2310'
+            $result = Convert-EventToObject -Event $event -ComputerName 'SRV01'
+            $result.FailureReason | Should -Be 'Account currently disabled'
+        }
+
+        It 'Should translate %%2305 to The specified user account has expired' {
+            $event = New-MockFailedEvent -FailureReason '%%2305'
+            $result = Convert-EventToObject -Event $event -ComputerName 'SRV01'
+            $result.FailureReason | Should -Be 'The specified user account has expired'
+        }
+
+        It 'Should translate %%2309 to The specified account password has expired' {
+            $event = New-MockFailedEvent -FailureReason '%%2309'
+            $result = Convert-EventToObject -Event $event -ComputerName 'SRV01'
+            $result.FailureReason | Should -Be 'The specified account password has expired'
+        }
+
+        It 'Should pass through unknown FailureReason codes unchanged' {
+            $event = New-MockFailedEvent -FailureReason '%%9999'
+            $result = Convert-EventToObject -Event $event -ComputerName 'SRV01'
+            $result.FailureReason | Should -Be '%%9999'
+        }
+    }
+
+    Context 'Status/SubStatus NTSTATUS enrichment' {
+        It 'Should enrich Status 0xC0000234 as account locked' {
+            $event = New-MockFailedEvent -Status '0xC0000234'
+            $result = Convert-EventToObject -Event $event -ComputerName 'SRV01'
+            $result.Status | Should -Be '0xC0000234 (User logon with account locked)'
+        }
+
+        It 'Should enrich SubStatus 0xC000006A as bad password' {
+            $event = New-MockFailedEvent -SubStatus '0xC000006A'
+            $result = Convert-EventToObject -Event $event -ComputerName 'SRV01'
+            $result.SubStatus | Should -Be '0xC000006A (User logon with misspelled or bad password)'
+        }
+
+        It 'Should enrich Status 0xC0000072 as account disabled' {
+            $event = New-MockFailedEvent -Status '0xC0000072'
+            $result = Convert-EventToObject -Event $event -ComputerName 'SRV01'
+            $result.Status | Should -Be '0xC0000072 (User logon to account disabled by administrator)'
+        }
+
+        It 'Should enrich SubStatus 0xC0000193 as expired account' {
+            $event = New-MockFailedEvent -SubStatus '0xC0000193'
+            $result = Convert-EventToObject -Event $event -ComputerName 'SRV01'
+            $result.SubStatus | Should -Be '0xC0000193 (User logon with expired account)'
+        }
+
+        It 'Should pass through unknown Status codes unchanged' {
+            $event = New-MockFailedEvent -Status '0xDEADBEEF'
+            $result = Convert-EventToObject -Event $event -ComputerName 'SRV01'
+            $result.Status | Should -Be '0xDEADBEEF'
+        }
+
+        It 'Should pass through unknown SubStatus codes unchanged' {
+            $event = New-MockFailedEvent -SubStatus '0xCAFEBABE'
+            $result = Convert-EventToObject -Event $event -ComputerName 'SRV01'
+            $result.SubStatus | Should -Be '0xCAFEBABE'
         }
     }
 
