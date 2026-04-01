@@ -138,20 +138,51 @@ stages:
               summaryFileLocation: '$(Build.SourcesDirectory)/$(buildFolderName)/$(testResultFolderName)/JaCoCo_coverage.xml'
               pathToSources: '$(Build.SourcesDirectory)/$(sourceFolderName)/'
 
-  - stage: Deploy
+  - stage: Deploy_Preview
+    displayName: 'Deploy Preview'
     dependsOn: Test
     condition: |
       and(
         succeeded(),
-        or(
-          eq(variables['Build.SourceBranch'], 'refs/heads/main'),
-          startsWith(variables['Build.SourceBranch'], 'refs/tags/')
-        ),
+        eq(variables['Build.SourceBranch'], 'refs/heads/main'),
         contains(variables['System.TeamFoundationCollectionUri'], 'fam-tiedemann')
       )
     jobs:
-      - job: Deploy_Module
-        displayName: 'Deploy Module'
+      - job: Deploy_Preview_Module
+        displayName: 'Deploy Preview to PSGallery'
+        pool:
+          vmImage: 'ubuntu-latest'
+        steps:
+          - task: DownloadPipelineArtifact@2
+            displayName: 'Download Pipeline Artifact'
+            inputs:
+              buildType: 'current'
+              artifactName: $(buildArtifactName)
+              targetPath: '$(Build.SourcesDirectory)/$(buildArtifactName)'
+          - task: PowerShell@2
+            name: publishPreview
+            displayName: 'Publish Preview to PSGallery'
+            inputs:
+              filePath: './build.ps1'
+              arguments: '-tasks publish_module_to_gallery'
+              pwsh: true
+            env:
+              GalleryApiToken: $(GalleryApiToken)
+              ReleaseBranch: $(defaultBranch)
+              MainGitBranch: $(defaultBranch)
+
+  - stage: Deploy_Release
+    displayName: 'Deploy Release'
+    dependsOn: Test
+    condition: |
+      and(
+        succeeded(),
+        startsWith(variables['Build.SourceBranch'], 'refs/tags/'),
+        contains(variables['System.TeamFoundationCollectionUri'], 'fam-tiedemann')
+      )
+    jobs:
+      - job: Deploy_Release_Module
+        displayName: 'Deploy Release'
         pool:
           vmImage: 'ubuntu-latest'
         steps:
