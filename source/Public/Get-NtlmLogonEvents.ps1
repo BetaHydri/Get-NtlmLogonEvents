@@ -872,7 +872,7 @@ if ($IncludeNtlmOperationalLog) {
         $baseId = if ($isBlock) { $eventId + 4000 } else { $eventId }
 
         switch ($baseId) {
-          8001 {
+          '8001' {
             [PSCustomObject]@{
               EventId           = $eventId
               EventType         = $eventType

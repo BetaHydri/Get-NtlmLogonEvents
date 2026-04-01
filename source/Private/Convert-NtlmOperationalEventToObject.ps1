@@ -43,7 +43,7 @@ function Convert-NtlmOperationalEventToObject {
 
     switch ($baseId) {
       # 8001/4001: Client outgoing — TargetName[0], UserName[1], DomainName[2], CallerPID[3], ProcessName[4]
-      8001 {
+      '8001' {
         [PSCustomObject]@{
           PSTypeName        = 'NtlmOperationalEvent'
           EventId           = $eventId
@@ -62,7 +62,7 @@ function Convert-NtlmOperationalEventToObject {
         }
       }
       # 8002/4002: Incoming NTLM (local/loopback) — CallerPID[0], ProcessName[1], ClientLUID[2], ClientUserName[3], ClientDomainName[4]
-      8002 {
+      '8002' {
         [PSCustomObject]@{
           PSTypeName        = 'NtlmOperationalEvent'
           EventId           = $eventId
@@ -81,7 +81,7 @@ function Convert-NtlmOperationalEventToObject {
         }
       }
       # 8003/4003: Server incoming (domain account) — UserName[0], DomainName[1], Workstation[2], CallerPID[3], ProcessName[4]
-      8003 {
+      '8003' {
         [PSCustomObject]@{
           PSTypeName        = 'NtlmOperationalEvent'
           EventId           = $eventId
