@@ -11,6 +11,14 @@ trigger:
     exclude:
     - "*-*"
 
+pr:
+  branches:
+    include:
+    - main
+  paths:
+    include:
+    - source/*
+
 variables:
   buildFolderName: output
   buildArtifactName: output
