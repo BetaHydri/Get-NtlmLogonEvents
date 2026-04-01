@@ -21,7 +21,7 @@ Describe 'Get-NtlmLogonEvents Function Parameters' {
 
         It 'Should have Target parameter with ValidateSet Localhost, DCs, Forest' {
             $validateSet = $command.Parameters['Target'].Attributes |
-            Where-Object { $_ -is [System.Management.Automation.ValidateSetAttribute] }
+                Where-Object { $_ -is [System.Management.Automation.ValidateSetAttribute] }
             $validateSet | Should -Not -BeNullOrEmpty
             $validateSet.ValidValues | Should -Contain 'Localhost'
             $validateSet.ValidValues | Should -Contain 'DCs'
@@ -83,7 +83,7 @@ Describe 'Get-NtlmLogonEvents Function Parameters' {
 
         It 'Should have Authentication parameter with ValidateSet Default, Negotiate, Kerberos, NegotiateWithImplicitCredential' {
             $validateSet = $command.Parameters['Authentication'].Attributes |
-            Where-Object { $_ -is [System.Management.Automation.ValidateSetAttribute] }
+                Where-Object { $_ -is [System.Management.Automation.ValidateSetAttribute] }
             $validateSet | Should -Not -BeNullOrEmpty
             $validateSet.ValidValues | Should -Contain 'Default'
             $validateSet.ValidValues | Should -Contain 'Negotiate'
@@ -118,31 +118,31 @@ Describe 'Get-NtlmLogonEvents Function Parameters' {
     Context 'Parameter sets' {
         It 'Should have Default as the default parameter set' {
             $cmdletBinding = $command.ScriptBlock.Attributes |
-            Where-Object { $_ -is [System.Management.Automation.CmdletBindingAttribute] }
+                Where-Object { $_ -is [System.Management.Automation.CmdletBindingAttribute] }
             $cmdletBinding.DefaultParameterSetName | Should -Be 'Default'
         }
 
         It 'Should have ComputerName mandatory in the ComputerName parameter set' {
             $paramAttrs = $command.Parameters['ComputerName'].Attributes |
-            Where-Object { $_ -is [System.Management.Automation.ParameterAttribute] -and $_.ParameterSetName -eq 'ComputerName' }
+                Where-Object { $_ -is [System.Management.Automation.ParameterAttribute] -and $_.ParameterSetName -eq 'ComputerName' }
             $paramAttrs.Mandatory | Should -BeTrue
         }
 
         It 'Should have ComputerName mandatory in the AuditConfigComputerName parameter set' {
             $paramAttrs = $command.Parameters['ComputerName'].Attributes |
-            Where-Object { $_ -is [System.Management.Automation.ParameterAttribute] -and $_.ParameterSetName -eq 'AuditConfigComputerName' }
+                Where-Object { $_ -is [System.Management.Automation.ParameterAttribute] -and $_.ParameterSetName -eq 'AuditConfigComputerName' }
             $paramAttrs.Mandatory | Should -BeTrue
         }
 
         It 'Should have CheckAuditConfig mandatory in the AuditConfig parameter set' {
             $paramAttrs = $command.Parameters['CheckAuditConfig'].Attributes |
-            Where-Object { $_ -is [System.Management.Automation.ParameterAttribute] -and $_.ParameterSetName -eq 'AuditConfig' }
+                Where-Object { $_ -is [System.Management.Automation.ParameterAttribute] -and $_.ParameterSetName -eq 'AuditConfig' }
             $paramAttrs.Mandatory | Should -BeTrue
         }
 
         It 'Should have CheckAuditConfig mandatory in the AuditConfigComputerName parameter set' {
             $paramAttrs = $command.Parameters['CheckAuditConfig'].Attributes |
-            Where-Object { $_ -is [System.Management.Automation.ParameterAttribute] -and $_.ParameterSetName -eq 'AuditConfigComputerName' }
+                Where-Object { $_ -is [System.Management.Automation.ParameterAttribute] -and $_.ParameterSetName -eq 'AuditConfigComputerName' }
             $paramAttrs.Mandatory | Should -BeTrue
         }
 
@@ -151,10 +151,11 @@ Describe 'Get-NtlmLogonEvents Function Parameters' {
                 'IncludeFailedLogons', 'CorrelatePrivileged',
                 'IncludeNtlmOperationalLog', 'IncludeMessage',
                 'StartTime', 'EndTime')
-            foreach ($paramName in $eventOnlyParams) {
+            foreach ($paramName in $eventOnlyParams)
+            {
                 $paramSets = $command.Parameters[$paramName].Attributes |
-                Where-Object { $_ -is [System.Management.Automation.ParameterAttribute] } |
-                ForEach-Object { $_.ParameterSetName }
+                    Where-Object { $_ -is [System.Management.Automation.ParameterAttribute] } |
+                        ForEach-Object { $_.ParameterSetName }
                 $paramSets | Should -Not -Contain 'AuditConfig' -Because "$paramName should not be in AuditConfig set"
                 $paramSets | Should -Not -Contain 'AuditConfigComputerName' -Because "$paramName should not be in AuditConfigComputerName set"
             }
@@ -162,8 +163,8 @@ Describe 'Get-NtlmLogonEvents Function Parameters' {
 
         It 'Should have Domain only in Default and AuditConfig parameter sets' {
             $paramSets = $command.Parameters['Domain'].Attributes |
-            Where-Object { $_ -is [System.Management.Automation.ParameterAttribute] } |
-            ForEach-Object { $_.ParameterSetName }
+                Where-Object { $_ -is [System.Management.Automation.ParameterAttribute] } |
+                    ForEach-Object { $_.ParameterSetName }
             $paramSets | Should -Contain 'Default'
             $paramSets | Should -Contain 'AuditConfig'
             $paramSets | Should -Not -Contain 'ComputerName'
@@ -277,7 +278,8 @@ Describe 'Module quality' {
     BeforeAll {
         $moduleInfo = Get-Module -Name 'Get-NtlmLogonEvents'
         $sourcePath = Join-Path -Path $PSScriptRoot -ChildPath '..\..\..\source\Public\Get-NtlmLogonEvents.ps1'
-        if (Test-Path $sourcePath) {
+        if (Test-Path $sourcePath)
+        {
             $scriptContent = Get-Content -Path $sourcePath -Raw
         }
     }

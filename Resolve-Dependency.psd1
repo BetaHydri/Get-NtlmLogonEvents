@@ -8,7 +8,7 @@
     #Proxy = ''
     #ProxyCredential = '$MyCredentialVariable' #TODO: find a way to support credentials in build (resolve variable)
 
-    Gallery         = 'PSGallery'
+    Gallery                                    = 'PSGallery'
 
     # To use a private nuget repository change the following to your own feed. The locations must be a Nuget v2 feed due
     # to limitation in PowerShellGet v2.x. Example below is for a Azure DevOps Server project-scoped feed. While resolving
@@ -30,8 +30,8 @@
 
     #AllowOldPowerShellGetModule = $true
     #MinimumPSDependVersion = '0.3.0'
-    AllowPrerelease = $false
-    WithYAML        = $true # Will also bootstrap PowerShell-Yaml to read other config files
+    AllowPrerelease                            = $false
+    WithYAML                                   = $true # Will also bootstrap PowerShell-Yaml to read other config files
 
     <#
         Enable ModuleFast to be the default method of resolving dependencies by setting
@@ -66,11 +66,10 @@
         UsePSResourceGet to the value $true. If UsePSResourceGet is not configured or
         set to $false then PowerShellGet will be used to resolve dependencies.
     #>
-    UsePSResourceGet = $true
-    PSResourceGetVersion = '1.2.0'
+    UsePSResourceGet                           = $true
+    PSResourceGetVersion                       = '1.2.0'
 
     # PowerShellGet compatibility module only works when using PSResourceGet or ModuleFast.
-    UsePowerShellGetCompatibilityModule = $true
+    UsePowerShellGetCompatibilityModule        = $true
     UsePowerShellGetCompatibilityModuleVersion = '3.0.23-beta23'
 }
-

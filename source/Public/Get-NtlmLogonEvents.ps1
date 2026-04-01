@@ -1,5 +1,6 @@
-function Get-NtlmLogonEvents {
-<#
+function Get-NtlmLogonEvents
+{
+  <#
     .SYNOPSIS
     Retrieves NTLM logon events (NTLMv1, NTLMv2, LM) from the Windows Security event log.
 
@@ -175,7 +176,7 @@ function Get-NtlmLogonEvents {
     .PARAMETER ComputerName
     One or more remote computer names to query via WinRM. Accepts an array of strings,
     allowing you to query multiple specific servers in one call.
-    This parameter replaces the old pattern of passing a hostname to -Target.  
+    This parameter replaces the old pattern of passing a hostname to -Target.
     Mutually exclusive with -Target (which only accepts Localhost, DCs, or Forest).
 
     .PARAMETER Domain
@@ -270,945 +271,1262 @@ function Get-NtlmLogonEvents {
       AuditConfigComputerName — Audit config check using -ComputerName
 #>
 
-[CmdletBinding(DefaultParameterSetName = 'Default')]
-param(
-  [Parameter(ParameterSetName = 'Default')]
-  [Parameter(ParameterSetName = 'ComputerName')]
-  [ValidateRange(1, [int]::MaxValue)]
-  [int]$NumEvents = 30,
+  [CmdletBinding(DefaultParameterSetName = 'Default')]
+  param(
+    [Parameter(ParameterSetName = 'Default')]
+    [Parameter(ParameterSetName = 'ComputerName')]
+    [ValidateRange(1, [int]::MaxValue)]
+    [int]$NumEvents = 30,
 
-  [Parameter(ParameterSetName = 'Default')]
-  [Parameter(ParameterSetName = 'AuditConfig')]
-  [ValidateSet('Localhost', 'DCs', 'Forest')]
-  [string]$Target = 'Localhost',
+    [Parameter(ParameterSetName = 'Default')]
+    [Parameter(ParameterSetName = 'AuditConfig')]
+    [ValidateSet('Localhost', 'DCs', 'Forest')]
+    [string]$Target = 'Localhost',
 
-  [Parameter(Mandatory, ParameterSetName = 'ComputerName')]
-  [Parameter(Mandatory, ParameterSetName = 'AuditConfigComputerName')]
-  [ValidateNotNullOrEmpty()]
-  [string[]]$ComputerName,
+    [Parameter(Mandatory, ParameterSetName = 'ComputerName')]
+    [Parameter(Mandatory, ParameterSetName = 'AuditConfigComputerName')]
+    [ValidateNotNullOrEmpty()]
+    [string[]]$ComputerName,
 
-  [Parameter(ParameterSetName = 'Default')]
-  [Parameter(ParameterSetName = 'ComputerName')]
-  [switch]$ExcludeNullSessions,
+    [Parameter(ParameterSetName = 'Default')]
+    [Parameter(ParameterSetName = 'ComputerName')]
+    [switch]$ExcludeNullSessions,
 
-  [Parameter(ParameterSetName = 'Default')]
-  [Parameter(ParameterSetName = 'ComputerName')]
-  [switch]$OnlyNTLMv1,
+    [Parameter(ParameterSetName = 'Default')]
+    [Parameter(ParameterSetName = 'ComputerName')]
+    [switch]$OnlyNTLMv1,
 
-  [Parameter(ParameterSetName = 'Default')]
-  [Parameter(ParameterSetName = 'ComputerName')]
-  [switch]$IncludeFailedLogons,
+    [Parameter(ParameterSetName = 'Default')]
+    [Parameter(ParameterSetName = 'ComputerName')]
+    [switch]$IncludeFailedLogons,
 
-  [Parameter(ParameterSetName = 'Default')]
-  [Parameter(ParameterSetName = 'ComputerName')]
-  [switch]$CorrelatePrivileged,
+    [Parameter(ParameterSetName = 'Default')]
+    [Parameter(ParameterSetName = 'ComputerName')]
+    [switch]$CorrelatePrivileged,
 
-  [Parameter(Mandatory, ParameterSetName = 'AuditConfig')]
-  [Parameter(Mandatory, ParameterSetName = 'AuditConfigComputerName')]
-  [switch]$CheckAuditConfig,
+    [Parameter(Mandatory, ParameterSetName = 'AuditConfig')]
+    [Parameter(Mandatory, ParameterSetName = 'AuditConfigComputerName')]
+    [switch]$CheckAuditConfig,
 
-  [Parameter(ParameterSetName = 'Default')]
-  [Parameter(ParameterSetName = 'ComputerName')]
-  [switch]$IncludeNtlmOperationalLog,
+    [Parameter(ParameterSetName = 'Default')]
+    [Parameter(ParameterSetName = 'ComputerName')]
+    [switch]$IncludeNtlmOperationalLog,
 
-  [Parameter(ParameterSetName = 'Default')]
-  [Parameter(ParameterSetName = 'ComputerName')]
-  [switch]$IncludeMessage,
+    [Parameter(ParameterSetName = 'Default')]
+    [Parameter(ParameterSetName = 'ComputerName')]
+    [switch]$IncludeMessage,
 
-  [Parameter(ParameterSetName = 'Default')]
-  [Parameter(ParameterSetName = 'AuditConfig')]
-  [string]$Domain,
+    [Parameter(ParameterSetName = 'Default')]
+    [Parameter(ParameterSetName = 'AuditConfig')]
+    [string]$Domain,
 
-  [Parameter(ParameterSetName = 'Default')]
-  [Parameter(ParameterSetName = 'ComputerName')]
-  [datetime]$StartTime,
+    [Parameter(ParameterSetName = 'Default')]
+    [Parameter(ParameterSetName = 'ComputerName')]
+    [datetime]$StartTime,
 
-  [Parameter(ParameterSetName = 'Default')]
-  [Parameter(ParameterSetName = 'ComputerName')]
-  [datetime]$EndTime,
+    [Parameter(ParameterSetName = 'Default')]
+    [Parameter(ParameterSetName = 'ComputerName')]
+    [datetime]$EndTime,
 
-  [ValidateSet('Default', 'Negotiate', 'Kerberos', 'NegotiateWithImplicitCredential')]
-  [string]$Authentication,
+    [ValidateSet('Default', 'Negotiate', 'Kerberos', 'NegotiateWithImplicitCredential')]
+    [string]$Authentication,
 
-  [System.Management.Automation.PSCredential]
-  [System.Management.Automation.Credential()]
-  $Credential = [System.Management.Automation.PSCredential]::Empty
-)
-
-# --- CheckAuditConfig standalone mode ---
-if ($CheckAuditConfig) {
-  $auditConfigOutputProperties = @(
-    'PolicyName', 'RegistryPath', 'RawValue', 'Setting',
-    'Recommended', 'IsRecommended', 'Scope', 'ComputerName'
+    [System.Management.Automation.PSCredential]
+    [System.Management.Automation.Credential()]
+    $Credential = [System.Management.Automation.PSCredential]::Empty
   )
 
-  # Remote script block embeds the same logic as Test-NtlmAuditConfiguration
-  $checkAuditConfigScriptBlock = {
-    $msv1_0Path = 'HKLM:\SYSTEM\CurrentControlSet\Control\Lsa\MSV1_0'
-    $netlogonPath = 'HKLM:\SYSTEM\CurrentControlSet\Services\Netlogon\Parameters'
-
-    function Get-RegValue {
-      param([string]$Path, [string]$Name)
-      try { (Get-ItemProperty -Path $Path -Name $Name -ErrorAction Stop).$Name }
-      catch { $null }
-    }
-
-    $policies = @(
-      @{
-        Policy = 'Network security: Restrict NTLM: Audit Incoming NTLM Traffic'
-        RegPath = "$msv1_0Path\AuditReceivingNTLMTraffic"
-        Path = $msv1_0Path; Name = 'AuditReceivingNTLMTraffic'
-        Map = @{ 0 = 'Disable'; 1 = 'Enable auditing for domain accounts'; 2 = 'Enable auditing for all accounts' }
-        Rec = 'Enable auditing for domain accounts (safe to enable)'
-        RecTest = { param($v) $null -ne $v -and [int]$v -ge 1 }
-        Scope = 'All devices'
-      }
-      @{
-        Policy = 'Network security: Restrict NTLM: Outgoing NTLM traffic to remote servers'
-        RegPath = "$msv1_0Path\RestrictSendingNTLMTraffic"
-        Path = $msv1_0Path; Name = 'RestrictSendingNTLMTraffic'
-        Map = @{ 0 = 'Allow all'; 1 = 'Audit all'; 2 = 'Deny all' }
-        Rec = 'Audit all (safe — audit only)'
-        RecTest = { param($v) $null -ne $v -and [int]$v -ge 1 }
-        Scope = 'All devices'
-      }
-      @{
-        Policy = 'Network security: Restrict NTLM: Incoming NTLM traffic'
-        RegPath = "$msv1_0Path\RestrictReceivingNTLMTraffic"
-        Path = $msv1_0Path; Name = 'RestrictReceivingNTLMTraffic'
-        Map = @{ 0 = 'Allow all'; 1 = 'Deny all domain accounts'; 2 = 'Deny all accounts' }
-        Rec = 'Deny all domain accounts (final goal — configure only after auditing is complete)'
-        RecTest = { param($v) $null -ne $v -and [int]$v -ge 1 }
-        Scope = 'All devices'
-      }
-      @{
-        Policy = 'Network security: Restrict NTLM: Audit NTLM authentication in this domain'
-        RegPath = "$netlogonPath\AuditNTLMInDomain"
-        Path = $netlogonPath; Name = 'AuditNTLMInDomain'
-        Map = @{ 0 = 'Disable'; 1 = 'Enable for domain accounts to domain servers'; 3 = 'Enable for domain accounts'; 5 = 'Enable for domain servers'; 7 = 'Enable all' }
-        Rec = 'Enable all (safe to enable)'
-        RecTest = { param($v) $null -ne $v -and [int]$v -eq 7 }
-        Scope = 'Domain Controllers only'
-      }
-      @{
-        Policy = 'Network security: Restrict NTLM: NTLM authentication in this domain'
-        RegPath = "$netlogonPath\RestrictNTLMInDomain"
-        Path = $netlogonPath; Name = 'RestrictNTLMInDomain'
-        Map = @{ 0 = 'Disable'; 1 = 'Deny for domain accounts to domain servers'; 3 = 'Deny for domain accounts'; 5 = 'Deny for domain servers'; 7 = 'Deny all' }
-        Rec = 'Deny all (final goal — configure only after auditing is complete)'
-        RecTest = { param($v) $null -ne $v -and [int]$v -ge 1 }
-        Scope = 'Domain Controllers only'
-      }
+  # --- CheckAuditConfig standalone mode ---
+  if ($CheckAuditConfig)
+  {
+    $auditConfigOutputProperties = @(
+      'PolicyName', 'RegistryPath', 'RawValue', 'Setting',
+      'Recommended', 'IsRecommended', 'Scope', 'ComputerName'
     )
 
-    foreach ($p in $policies) {
-      $raw = Get-RegValue -Path $p.Path -Name $p.Name
-      $setting = if ($null -eq $raw) { 'Not configured' }
-      elseif ($p.Map.ContainsKey([int]$raw)) { $p.Map[[int]$raw] }
-      else { "Unknown ($raw)" }
-      [PSCustomObject]@{
-        PolicyName    = $p.Policy
-        RegistryPath  = $p.RegPath
-        RawValue      = $raw
-        Setting       = $setting
-        Recommended   = $p.Rec
-        IsRecommended = (& $p.RecTest $raw)
-        Scope         = $p.Scope
-        ComputerName  = $env:COMPUTERNAME
+    # Remote script block embeds the same logic as Test-NtlmAuditConfiguration
+    $checkAuditConfigScriptBlock = {
+      $msv1_0Path = 'HKLM:\SYSTEM\CurrentControlSet\Control\Lsa\MSV1_0'
+      $netlogonPath = 'HKLM:\SYSTEM\CurrentControlSet\Services\Netlogon\Parameters'
+
+      function Get-RegValue
+      {
+        param([string]$Path, [string]$Name)
+        try
+        {
+          (Get-ItemProperty -Path $Path -Name $Name -ErrorAction Stop).$Name 
+        }
+        catch
+        {
+          $null 
+        }
+      }
+
+      $policies = @(
+        @{
+          Policy = 'Network security: Restrict NTLM: Audit Incoming NTLM Traffic'
+          RegPath = "$msv1_0Path\AuditReceivingNTLMTraffic"
+          Path = $msv1_0Path; Name = 'AuditReceivingNTLMTraffic'
+          Map = @{ 0 = 'Disable'; 1 = 'Enable auditing for domain accounts'; 2 = 'Enable auditing for all accounts' }
+          Rec = 'Enable auditing for domain accounts (safe to enable)'
+          RecTest = { param($v) $null -ne $v -and [int]$v -ge 1 }
+          Scope = 'All devices'
+        }
+        @{
+          Policy = 'Network security: Restrict NTLM: Outgoing NTLM traffic to remote servers'
+          RegPath = "$msv1_0Path\RestrictSendingNTLMTraffic"
+          Path = $msv1_0Path; Name = 'RestrictSendingNTLMTraffic'
+          Map = @{ 0 = 'Allow all'; 1 = 'Audit all'; 2 = 'Deny all' }
+          Rec = 'Audit all (safe — audit only)'
+          RecTest = { param($v) $null -ne $v -and [int]$v -ge 1 }
+          Scope = 'All devices'
+        }
+        @{
+          Policy = 'Network security: Restrict NTLM: Incoming NTLM traffic'
+          RegPath = "$msv1_0Path\RestrictReceivingNTLMTraffic"
+          Path = $msv1_0Path; Name = 'RestrictReceivingNTLMTraffic'
+          Map = @{ 0 = 'Allow all'; 1 = 'Deny all domain accounts'; 2 = 'Deny all accounts' }
+          Rec = 'Deny all domain accounts (final goal — configure only after auditing is complete)'
+          RecTest = { param($v) $null -ne $v -and [int]$v -ge 1 }
+          Scope = 'All devices'
+        }
+        @{
+          Policy = 'Network security: Restrict NTLM: Audit NTLM authentication in this domain'
+          RegPath = "$netlogonPath\AuditNTLMInDomain"
+          Path = $netlogonPath; Name = 'AuditNTLMInDomain'
+          Map = @{ 0 = 'Disable'; 1 = 'Enable for domain accounts to domain servers'; 3 = 'Enable for domain accounts'; 5 = 'Enable for domain servers'; 7 = 'Enable all' }
+          Rec = 'Enable all (safe to enable)'
+          RecTest = { param($v) $null -ne $v -and [int]$v -eq 7 }
+          Scope = 'Domain Controllers only'
+        }
+        @{
+          Policy = 'Network security: Restrict NTLM: NTLM authentication in this domain'
+          RegPath = "$netlogonPath\RestrictNTLMInDomain"
+          Path = $netlogonPath; Name = 'RestrictNTLMInDomain'
+          Map = @{ 0 = 'Disable'; 1 = 'Deny for domain accounts to domain servers'; 3 = 'Deny for domain accounts'; 5 = 'Deny for domain servers'; 7 = 'Deny all' }
+          Rec = 'Deny all (final goal — configure only after auditing is complete)'
+          RecTest = { param($v) $null -ne $v -and [int]$v -ge 1 }
+          Scope = 'Domain Controllers only'
+        }
+      )
+
+      foreach ($p in $policies)
+      {
+        $raw = Get-RegValue -Path $p.Path -Name $p.Name
+        $setting = if ($null -eq $raw)
+        {
+          'Not configured' 
+        }
+        elseif ($p.Map.ContainsKey([int]$raw))
+        {
+          $p.Map[[int]$raw] 
+        }
+        else
+        {
+          "Unknown ($raw)" 
+        }
+        [PSCustomObject]@{
+          PolicyName    = $p.Policy
+          RegistryPath  = $p.RegPath
+          RawValue      = $raw
+          Setting       = $setting
+          Recommended   = $p.Rec
+          IsRecommended = (& $p.RecTest $raw)
+          Scope         = $p.Scope
+          ComputerName  = $env:COMPUTERNAME
+        }
+      }
+
+      # Exception lists
+      $cEx = Get-RegValue -Path $msv1_0Path -Name 'ClientAllowedNTLMServers'
+      if ($cEx)
+      {
+        [PSCustomObject]@{
+          PolicyName    = 'Network security: Restrict NTLM: Add remote server exceptions'
+          RegistryPath  = "$msv1_0Path\ClientAllowedNTLMServers"
+          RawValue      = $null
+          Setting       = ($cEx -join ', ')
+          Recommended   = 'Minimize exceptions'
+          IsRecommended = $false
+          Scope         = 'All devices'
+          ComputerName  = $env:COMPUTERNAME
+        }
+      }
+
+      $dEx = Get-RegValue -Path $netlogonPath -Name 'DCAllowedNTLMServers'
+      if ($dEx)
+      {
+        [PSCustomObject]@{
+          PolicyName    = 'Network security: Restrict NTLM: Add server exceptions in this domain'
+          RegistryPath  = "$netlogonPath\DCAllowedNTLMServers"
+          RawValue      = $null
+          Setting       = ($dEx -join ', ')
+          Recommended   = 'Minimize exceptions'
+          IsRecommended = $false
+          Scope         = 'Domain Controllers only'
+          ComputerName  = $env:COMPUTERNAME
+        }
       }
     }
 
-    # Exception lists
-    $cEx = Get-RegValue -Path $msv1_0Path -Name 'ClientAllowedNTLMServers'
-    if ($cEx) {
-      [PSCustomObject]@{
-        PolicyName    = 'Network security: Restrict NTLM: Add remote server exceptions'
-        RegistryPath  = "$msv1_0Path\ClientAllowedNTLMServers"
-        RawValue      = $null
-        Setting       = ($cEx -join ', ')
-        Recommended   = 'Minimize exceptions'
-        IsRecommended = $false
-        Scope         = 'All devices'
-        ComputerName  = $env:COMPUTERNAME
-      }
+    $checkInvokeParams = @{
+      ScriptBlock = $checkAuditConfigScriptBlock
+      ErrorAction = 'Stop'
+    }
+    if ($Credential -ne [System.Management.Automation.PSCredential]::Empty)
+    {
+      $checkInvokeParams['Credential'] = $Credential
+    }
+    if ($PSBoundParameters.ContainsKey('Authentication'))
+    {
+      $checkInvokeParams['Authentication'] = $Authentication
     }
 
-    $dEx = Get-RegValue -Path $netlogonPath -Name 'DCAllowedNTLMServers'
-    if ($dEx) {
-      [PSCustomObject]@{
-        PolicyName    = 'Network security: Restrict NTLM: Add server exceptions in this domain'
-        RegistryPath  = "$netlogonPath\DCAllowedNTLMServers"
-        RawValue      = $null
-        Setting       = ($dEx -join ', ')
-        Recommended   = 'Minimize exceptions'
-        IsRecommended = $false
-        Scope         = 'Domain Controllers only'
-        ComputerName  = $env:COMPUTERNAME
-      }
+    if ($Target -eq 'Localhost' -and -not $PSBoundParameters.ContainsKey('ComputerName'))
+    {
+      Write-Verbose 'Checking NTLM audit configuration on local host...'
+      Test-NtlmAuditConfiguration
     }
-  }
+    elseif ($Target -eq 'DCs')
+    {
+      Write-Verbose 'Loading ActiveDirectory module to enumerate domain controllers...'
+      try
+      {
+        Import-Module ActiveDirectory -ErrorAction Stop
+      }
+      catch
+      {
+        Write-Error "The ActiveDirectory PowerShell module is required for -Target DCs. Install RSAT or run from a DC. Error: $_"
+        return
+      }
+      try
+      {
+        $domainControllers = if ($Domain)
+        {
+          Get-ADDomainController -Filter * -Server $Domain -ErrorAction Stop | Select-Object -ExpandProperty HostName
+        }
+        else
+        {
+          Get-ADDomainController -Filter * -ErrorAction Stop | Select-Object -ExpandProperty HostName
+        }
+      }
+      catch
+      {
+        Write-Error "Failed to enumerate domain controllers. Ensure this machine can reach Active Directory Web Services (ADWS). Azure AD-joined clients without line-of-sight to a domain controller cannot use -Target DCs. Error: $_"
+        return
+      }
+      if (-not $domainControllers)
+      {
+        Write-Error 'No domain controllers were found. Verify the domain name and network connectivity.'
+        return
+      }
+      $domainLabel = if ($Domain)
+      {
+        " in domain '$Domain'" 
+      }
+      else
+      {
+        '' 
+      }
+      Write-Verbose "Checking NTLM audit configuration on DCs${domainLabel}: $($domainControllers -join ', ')"
 
-  $checkInvokeParams = @{
-    ScriptBlock = $checkAuditConfigScriptBlock
-    ErrorAction = 'Stop'
-  }
-  if ($Credential -ne [System.Management.Automation.PSCredential]::Empty) {
-    $checkInvokeParams['Credential'] = $Credential
-  }
-  if ($PSBoundParameters.ContainsKey('Authentication')) {
-    $checkInvokeParams['Authentication'] = $Authentication
-  }
-
-  if ($Target -eq 'Localhost' -and -not $PSBoundParameters.ContainsKey('ComputerName')) {
-    Write-Verbose 'Checking NTLM audit configuration on local host...'
-    Test-NtlmAuditConfiguration
-  }
-  elseif ($Target -eq 'DCs') {
-    Write-Verbose 'Loading ActiveDirectory module to enumerate domain controllers...'
-    try {
-      Import-Module ActiveDirectory -ErrorAction Stop
-    }
-    catch {
-      Write-Error "The ActiveDirectory PowerShell module is required for -Target DCs. Install RSAT or run from a DC. Error: $_"
-      return
-    }
-    try {
-      $domainControllers = if ($Domain) {
-        Get-ADDomainController -Filter * -Server $Domain -ErrorAction Stop | Select-Object -ExpandProperty HostName
-      }
-      else {
-        Get-ADDomainController -Filter * -ErrorAction Stop | Select-Object -ExpandProperty HostName
-      }
-    }
-    catch {
-      Write-Error "Failed to enumerate domain controllers. Ensure this machine can reach Active Directory Web Services (ADWS). Azure AD-joined clients without line-of-sight to a domain controller cannot use -Target DCs. Error: $_"
-      return
-    }
-    if (-not $domainControllers) {
-      Write-Error 'No domain controllers were found. Verify the domain name and network connectivity.'
-      return
-    }
-    $domainLabel = if ($Domain) { " in domain '$Domain'" } else { '' }
-    Write-Verbose "Checking NTLM audit configuration on DCs${domainLabel}: $($domainControllers -join ', ')"
-
-    $checkInvokeParams['ComputerName'] = $domainControllers
-    try {
-      Invoke-Command @checkInvokeParams | Select-Object $auditConfigOutputProperties
-    }
-    catch {
-      Write-Error "Failed to check audit configuration on domain controllers: $_"
-    }
-  }
-  elseif ($Target -eq 'Forest') {
-    Write-Verbose 'Loading ActiveDirectory module to enumerate all forest domain controllers...'
-    try {
-      Import-Module ActiveDirectory -ErrorAction Stop
-    }
-    catch {
-      Write-Error "The ActiveDirectory PowerShell module is required for -Target Forest. Install RSAT or run from a DC. Error: $_"
-      return
-    }
-    try {
-      $forestDomains = (Get-ADForest -ErrorAction Stop).Domains
-    }
-    catch {
-      Write-Error "Failed to enumerate forest domains. Ensure this machine can reach Active Directory Web Services (ADWS). Azure AD-joined clients without line-of-sight to a domain controller cannot use -Target Forest. Error: $_"
-      return
-    }
-    Write-Verbose "Forest domains: $($forestDomains -join ', ')"
-    $domainDCMap = @{}
-    $allDCs = foreach ($dom in $forestDomains) {
-      try {
-        $dcs = @(Get-ADDomainController -Filter * -Server $dom -ErrorAction Stop | Select-Object -ExpandProperty HostName)
-        $domainDCMap[$dom] = $dcs
-        $dcs
-      }
-      catch {
-        Write-Warning "Failed to enumerate DCs in domain '${dom}': $_"
-      }
-    }
-    if (-not $allDCs) {
-      Write-Error 'No domain controllers could be enumerated across the forest.'
-      return
-    }
-    Write-Verbose "Checking NTLM audit configuration on forest DCs: $($allDCs -join ', ')"
-
-    foreach ($dom in $domainDCMap.Keys) {
-      $domDCs = $domainDCMap[$dom]
-      Write-Verbose "Checking NTLM audit configuration on DCs in domain '${dom}': $($domDCs -join ', ')"
-      $checkInvokeParams['ComputerName'] = $domDCs
-      try {
+      $checkInvokeParams['ComputerName'] = $domainControllers
+      try
+      {
         Invoke-Command @checkInvokeParams | Select-Object $auditConfigOutputProperties
       }
-      catch {
-        Write-Warning "Failed to check audit configuration on DCs in domain '${dom}': $_"
+      catch
+      {
+        Write-Error "Failed to check audit configuration on domain controllers: $_"
       }
     }
-  }
-  elseif ($PSBoundParameters.ContainsKey('ComputerName')) {
-    Write-Verbose "Checking NTLM audit configuration on remote host(s): $($ComputerName -join ', ')"
-    $checkInvokeParams['ComputerName'] = $ComputerName
-    try {
-      Invoke-Command @checkInvokeParams | Select-Object $auditConfigOutputProperties
-    }
-    catch {
-      Write-Error "Failed to check audit configuration on $($ComputerName -join ', '): $_"
-    }
-  }
-  return
-}
-
-# Build the XPath filter
-$filterParams = @{
-  OnlyNTLMv1          = $OnlyNTLMv1
-  ExcludeNullSessions = $ExcludeNullSessions
-  IncludeFailedLogons = $IncludeFailedLogons
-}
-if ($PSBoundParameters.ContainsKey('StartTime')) {
-  $filterParams['StartTime'] = $StartTime
-}
-if ($PSBoundParameters.ContainsKey('EndTime')) {
-  $filterParams['EndTime'] = $EndTime
-}
-$xpathFilter = Build-XPathFilter @filterParams
-
-$ntlmVersionLabel = if ($OnlyNTLMv1) { 'NTLMv1' } else { 'NTLM (v1, v2, LM)' }
-
-# Output properties for consistent column ordering
-$outputProperties = @(
-  'EventId', 'Time', 'UserName', 'TargetDomainName', 'LogonType',
-  'LogonProcessName', 'AuthenticationPackageName', 'WorkstationName',
-  'LmPackageName', 'IPAddress', 'TCPPort', 'ImpersonationLevel',
-  'ProcessName', 'Status', 'FailureReason', 'SubStatus', 'TargetLogonId'
-)
-if ($CorrelatePrivileged) {
-  $outputProperties += 'IsPrivileged', 'PrivilegeList'
-}
-if ($IncludeMessage) {
-  $outputProperties += 'Message'
-}
-$outputProperties += 'ComputerName'
-
-# Build the remote script block (shared for DCs and single remote host)
-$remoteScriptBlock = {
-  param($Filter, $MaxEvents, $DoCorrelatePrivileged)
-
-  # Re-declare the converter inside the remote session
-  function Convert-RemoteEvent {
-    param(
-      [Parameter(Mandatory)]$Event,
-      [string]$ComputerName
-    )
-
-    $impersonationMap = @{
-      '%%1831' = 'Anonymous'
-      '%%1832' = 'Identify'
-      '%%1833' = 'Impersonation'
-      '%%1834' = 'Delegation'
-    }
-
-    $logonTypeMap = @{
-      0  = 'System'
-      2  = 'Interactive'
-      3  = 'Network'
-      4  = 'Batch'
-      5  = 'Service'
-      7  = 'Unlock'
-      8  = 'NetworkCleartext'
-      9  = 'NewCredentials'
-      10 = 'RemoteInteractive'
-      11 = 'CachedInteractive'
-      12 = 'CachedRemoteInteractive'
-      13 = 'CachedUnlock'
-    }
-
-    $failureReasonMap = @{
-      '%%2304' = 'An error occurred during logon'
-      '%%2305' = 'The specified user account has expired'
-      '%%2306' = 'The NetLogon component is not active'
-      '%%2307' = 'Account locked out'
-      '%%2308' = 'The user has not been granted the requested logon type at this machine'
-      '%%2309' = 'The specified account password has expired'
-      '%%2310' = 'Account currently disabled'
-      '%%2311' = 'Account logon time restriction violation'
-      '%%2312' = 'User not allowed to logon at this computer'
-      '%%2313' = 'Unknown user name or bad password'
-    }
-
-    $ntStatusMap = @{
-      '0xC000005E' = 'No logon servers available'
-      '0xC0000064' = 'User logon with misspelled or bad user account'
-      '0xC000006A' = 'User logon with misspelled or bad password'
-      '0xC000006D' = 'Logon failure: unknown user name or bad password'
-      '0xC000006E' = 'User logon with account restriction'
-      '0xC000006F' = 'User logon outside authorized hours'
-      '0xC0000070' = 'User logon from unauthorized workstation'
-      '0xC0000071' = 'User logon with expired password'
-      '0xC0000072' = 'User logon to account disabled by administrator'
-      '0xC00000DC' = 'SAM server is in the wrong state'
-      '0xC0000133' = 'Clocks between DC and other computer too far out of sync'
-      '0xC000015B' = 'The user has not been granted the requested logon type at this machine'
-      '0xC000018C' = 'The trust relationship between the primary domain and the trusted domain failed'
-      '0xC0000192' = 'NetLogon service was not started'
-      '0xC0000193' = 'User logon with expired account'
-      '0xC0000224' = 'User is required to change password at next logon'
-      '0xC0000225' = 'Windows bug — not a risk'
-      '0xC0000234' = 'User logon with account locked'
-      '0xC00002EE' = 'An error occurred during logon'
-      '0xC0000413' = 'Authentication Firewall — logon condition not met'
-    }
-
-    $eventId = $Event.Id
-    $isFailed = ($eventId -eq 4625)
-
-    if ($isFailed) {
-      $logonType = $Event.Properties[10].Value
-      $logonProcessName = $Event.Properties[11].Value
-      $authPackageName = $Event.Properties[12].Value
-      $workstationName = $Event.Properties[13].Value
-      $lmPackageName = $Event.Properties[15].Value
-      $processName = $Event.Properties[18].Value
-      $ipAddress = $Event.Properties[19].Value
-      $tcpPort = $Event.Properties[20].Value
-      $impersonationLevel = $null
-      $targetLogonId = $null
-      $status = $Event.Properties[7].Value
-      $failureReason = $Event.Properties[8].Value
-      $subStatus = $Event.Properties[9].Value
-    }
-    else {
-      $logonType = $Event.Properties[8].Value
-      $logonProcessName = $Event.Properties[9].Value
-      $authPackageName = $Event.Properties[10].Value
-      $workstationName = $Event.Properties[11].Value
-      $lmPackageName = $Event.Properties[14].Value
-      $processName = $Event.Properties[17].Value
-      $ipAddress = $Event.Properties[18].Value
-      $tcpPort = $Event.Properties[19].Value
-      $targetLogonId = $Event.Properties[7].Value -as [string]
-      $status = $null
-      $failureReason = $null
-      $subStatus = $null
-
-      $rawImpersonation = $Event.Properties[20].Value -as [string]
-      $impersonationLevel = if ($impersonationMap.ContainsKey($rawImpersonation)) {
-        $impersonationMap[$rawImpersonation]
+    elseif ($Target -eq 'Forest')
+    {
+      Write-Verbose 'Loading ActiveDirectory module to enumerate all forest domain controllers...'
+      try
+      {
+        Import-Module ActiveDirectory -ErrorAction Stop
       }
-      else {
-        $rawImpersonation
+      catch
+      {
+        Write-Error "The ActiveDirectory PowerShell module is required for -Target Forest. Install RSAT or run from a DC. Error: $_"
+        return
+      }
+      try
+      {
+        $forestDomains = (Get-ADForest -ErrorAction Stop).Domains
+      }
+      catch
+      {
+        Write-Error "Failed to enumerate forest domains. Ensure this machine can reach Active Directory Web Services (ADWS). Azure AD-joined clients without line-of-sight to a domain controller cannot use -Target Forest. Error: $_"
+        return
+      }
+      Write-Verbose "Forest domains: $($forestDomains -join ', ')"
+      $domainDCMap = @{}
+      $allDCs = foreach ($dom in $forestDomains)
+      {
+        try
+        {
+          $dcs = @(Get-ADDomainController -Filter * -Server $dom -ErrorAction Stop | Select-Object -ExpandProperty HostName)
+          $domainDCMap[$dom] = $dcs
+          $dcs
+        }
+        catch
+        {
+          Write-Warning "Failed to enumerate DCs in domain '${dom}': $_"
+        }
+      }
+      if (-not $allDCs)
+      {
+        Write-Error 'No domain controllers could be enumerated across the forest.'
+        return
+      }
+      Write-Verbose "Checking NTLM audit configuration on forest DCs: $($allDCs -join ', ')"
+
+      foreach ($dom in $domainDCMap.Keys)
+      {
+        $domDCs = $domainDCMap[$dom]
+        Write-Verbose "Checking NTLM audit configuration on DCs in domain '${dom}': $($domDCs -join ', ')"
+        $checkInvokeParams['ComputerName'] = $domDCs
+        try
+        {
+          Invoke-Command @checkInvokeParams | Select-Object $auditConfigOutputProperties
+        }
+        catch
+        {
+          Write-Warning "Failed to check audit configuration on DCs in domain '${dom}': $_"
+        }
       }
     }
-
-    $rawLogonType = $logonType -as [int]
-    $logonType = if ($logonTypeMap.ContainsKey($rawLogonType)) {
-      "$rawLogonType ($($logonTypeMap[$rawLogonType]))"
-    }
-    else {
-      $logonType
-    }
-
-    if ($failureReason) {
-      $rawFailureReason = $failureReason -as [string]
-      $failureReason = if ($failureReasonMap.ContainsKey($rawFailureReason)) {
-        $failureReasonMap[$rawFailureReason]
+    elseif ($PSBoundParameters.ContainsKey('ComputerName'))
+    {
+      Write-Verbose "Checking NTLM audit configuration on remote host(s): $($ComputerName -join ', ')"
+      $checkInvokeParams['ComputerName'] = $ComputerName
+      try
+      {
+        Invoke-Command @checkInvokeParams | Select-Object $auditConfigOutputProperties
       }
-      else {
-        $rawFailureReason
+      catch
+      {
+        Write-Error "Failed to check audit configuration on $($ComputerName -join ', '): $_"
       }
     }
-
-    if ($status) {
-      $rawStatus = $status -as [string]
-      $status = if ($ntStatusMap.ContainsKey($rawStatus)) {
-        "$rawStatus ($($ntStatusMap[$rawStatus]))"
-      }
-      else {
-        $rawStatus
-      }
-    }
-
-    if ($subStatus) {
-      $rawSubStatus = $subStatus -as [string]
-      $subStatus = if ($ntStatusMap.ContainsKey($rawSubStatus)) {
-        "$rawSubStatus ($($ntStatusMap[$rawSubStatus]))"
-      }
-      else {
-        $rawSubStatus
-      }
-    }
-
-    [PSCustomObject]@{
-      EventId                   = $eventId
-      Time                      = $Event.TimeCreated
-      UserName                  = $Event.Properties[5].Value
-      TargetDomainName          = $Event.Properties[6].Value
-      LogonType                 = $logonType
-      LogonProcessName          = $logonProcessName
-      AuthenticationPackageName = $authPackageName
-      WorkstationName           = $workstationName
-      LmPackageName             = $lmPackageName
-      IPAddress                 = $ipAddress
-      TCPPort                   = $tcpPort
-      ImpersonationLevel        = $impersonationLevel
-      ProcessName               = $processName
-      Status                    = $status
-      FailureReason             = $failureReason
-      SubStatus                 = $subStatus
-      TargetLogonId             = $targetLogonId
-      Message                   = $Event.Message
-      ComputerName              = $env:COMPUTERNAME
-    }
+    return
   }
 
-  $events = @(Get-WinEvent -LogName Security -MaxEvents $MaxEvents -FilterXPath $Filter -ErrorAction Stop |
-    ForEach-Object { Convert-RemoteEvent -Event $_ -ComputerName $env:COMPUTERNAME })
+  # Build the XPath filter
+  $filterParams = @{
+    OnlyNTLMv1          = $OnlyNTLMv1
+    ExcludeNullSessions = $ExcludeNullSessions
+    IncludeFailedLogons = $IncludeFailedLogons
+  }
+  if ($PSBoundParameters.ContainsKey('StartTime'))
+  {
+    $filterParams['StartTime'] = $StartTime
+  }
+  if ($PSBoundParameters.ContainsKey('EndTime'))
+  {
+    $filterParams['EndTime'] = $EndTime
+  }
+  $xpathFilter = Build-XPathFilter @filterParams
 
-  if ($DoCorrelatePrivileged -and $events.Count -gt 0) {
-    # Correlate with Event ID 4672 (special privileges assigned to new logon)
-    $successEvents = @($events | Where-Object { $_.EventId -eq 4624 -and $_.TargetLogonId })
-    if ($successEvents.Count -gt 0) {
-      $times = $successEvents | ForEach-Object { $_.Time }
-      $earliest = ($times | Measure-Object -Minimum).Minimum.AddSeconds(-2)
-      $latest = ($times | Measure-Object -Maximum).Maximum.AddSeconds(2)
-      $startUtc = $earliest.ToUniversalTime().ToString('yyyy-MM-ddTHH:mm:ss.fffZ')
-      $endUtc = $latest.ToUniversalTime().ToString('yyyy-MM-ddTHH:mm:ss.fffZ')
-      $xpath4672 = "Event[System[EventID=4672 and TimeCreated[@SystemTime>='$startUtc'] and TimeCreated[@SystemTime<='$endUtc']]]"
+  $ntlmVersionLabel = if ($OnlyNTLMv1)
+  {
+    'NTLMv1' 
+  }
+  else
+  {
+    'NTLM (v1, v2, LM)' 
+  }
 
-      $lookup = @{}
-      try {
-        Get-WinEvent -LogName Security -FilterXPath $xpath4672 -ErrorAction Stop | ForEach-Object {
-          $logonId = $_.Properties[3].Value -as [string]
-          $privileges = ($_.Properties[4].Value -as [string]).Trim()
-          if ($logonId -and -not $lookup.ContainsKey($logonId)) {
-            $lookup[$logonId] = $privileges
+  # Output properties for consistent column ordering
+  $outputProperties = @(
+    'EventId', 'Time', 'UserName', 'TargetDomainName', 'LogonType',
+    'LogonProcessName', 'AuthenticationPackageName', 'WorkstationName',
+    'LmPackageName', 'IPAddress', 'TCPPort', 'ImpersonationLevel',
+    'ProcessName', 'Status', 'FailureReason', 'SubStatus', 'TargetLogonId'
+  )
+  if ($CorrelatePrivileged)
+  {
+    $outputProperties += 'IsPrivileged', 'PrivilegeList'
+  }
+  if ($IncludeMessage)
+  {
+    $outputProperties += 'Message'
+  }
+  $outputProperties += 'ComputerName'
+
+  # Build the remote script block (shared for DCs and single remote host)
+  $remoteScriptBlock = {
+    param($Filter, $MaxEvents, $DoCorrelatePrivileged)
+
+    # Re-declare the converter inside the remote session
+    function Convert-RemoteEvent
+    {
+      param(
+        [Parameter(Mandatory)]$Event,
+        [string]$ComputerName
+      )
+
+      $impersonationMap = @{
+        '%%1831' = 'Anonymous'
+        '%%1832' = 'Identify'
+        '%%1833' = 'Impersonation'
+        '%%1834' = 'Delegation'
+      }
+
+      $logonTypeMap = @{
+        0  = 'System'
+        2  = 'Interactive'
+        3  = 'Network'
+        4  = 'Batch'
+        5  = 'Service'
+        7  = 'Unlock'
+        8  = 'NetworkCleartext'
+        9  = 'NewCredentials'
+        10 = 'RemoteInteractive'
+        11 = 'CachedInteractive'
+        12 = 'CachedRemoteInteractive'
+        13 = 'CachedUnlock'
+      }
+
+      $failureReasonMap = @{
+        '%%2304' = 'An error occurred during logon'
+        '%%2305' = 'The specified user account has expired'
+        '%%2306' = 'The NetLogon component is not active'
+        '%%2307' = 'Account locked out'
+        '%%2308' = 'The user has not been granted the requested logon type at this machine'
+        '%%2309' = 'The specified account password has expired'
+        '%%2310' = 'Account currently disabled'
+        '%%2311' = 'Account logon time restriction violation'
+        '%%2312' = 'User not allowed to logon at this computer'
+        '%%2313' = 'Unknown user name or bad password'
+      }
+
+      $ntStatusMap = @{
+        '0xC000005E' = 'No logon servers available'
+        '0xC0000064' = 'User logon with misspelled or bad user account'
+        '0xC000006A' = 'User logon with misspelled or bad password'
+        '0xC000006D' = 'Logon failure: unknown user name or bad password'
+        '0xC000006E' = 'User logon with account restriction'
+        '0xC000006F' = 'User logon outside authorized hours'
+        '0xC0000070' = 'User logon from unauthorized workstation'
+        '0xC0000071' = 'User logon with expired password'
+        '0xC0000072' = 'User logon to account disabled by administrator'
+        '0xC00000DC' = 'SAM server is in the wrong state'
+        '0xC0000133' = 'Clocks between DC and other computer too far out of sync'
+        '0xC000015B' = 'The user has not been granted the requested logon type at this machine'
+        '0xC000018C' = 'The trust relationship between the primary domain and the trusted domain failed'
+        '0xC0000192' = 'NetLogon service was not started'
+        '0xC0000193' = 'User logon with expired account'
+        '0xC0000224' = 'User is required to change password at next logon'
+        '0xC0000225' = 'Windows bug — not a risk'
+        '0xC0000234' = 'User logon with account locked'
+        '0xC00002EE' = 'An error occurred during logon'
+        '0xC0000413' = 'Authentication Firewall — logon condition not met'
+      }
+
+      $eventId = $Event.Id
+      $isFailed = ($eventId -eq 4625)
+
+      if ($isFailed)
+      {
+        $logonType = $Event.Properties[10].Value
+        $logonProcessName = $Event.Properties[11].Value
+        $authPackageName = $Event.Properties[12].Value
+        $workstationName = $Event.Properties[13].Value
+        $lmPackageName = $Event.Properties[15].Value
+        $processName = $Event.Properties[18].Value
+        $ipAddress = $Event.Properties[19].Value
+        $tcpPort = $Event.Properties[20].Value
+        $impersonationLevel = $null
+        $targetLogonId = $null
+        $status = $Event.Properties[7].Value
+        $failureReason = $Event.Properties[8].Value
+        $subStatus = $Event.Properties[9].Value
+      }
+      else
+      {
+        $logonType = $Event.Properties[8].Value
+        $logonProcessName = $Event.Properties[9].Value
+        $authPackageName = $Event.Properties[10].Value
+        $workstationName = $Event.Properties[11].Value
+        $lmPackageName = $Event.Properties[14].Value
+        $processName = $Event.Properties[17].Value
+        $ipAddress = $Event.Properties[18].Value
+        $tcpPort = $Event.Properties[19].Value
+        $targetLogonId = $Event.Properties[7].Value -as [string]
+        $status = $null
+        $failureReason = $null
+        $subStatus = $null
+
+        $rawImpersonation = $Event.Properties[20].Value -as [string]
+        $impersonationLevel = if ($impersonationMap.ContainsKey($rawImpersonation))
+        {
+          $impersonationMap[$rawImpersonation]
+        }
+        else
+        {
+          $rawImpersonation
+        }
+      }
+
+      $rawLogonType = $logonType -as [int]
+      $logonType = if ($logonTypeMap.ContainsKey($rawLogonType))
+      {
+        "$rawLogonType ($($logonTypeMap[$rawLogonType]))"
+      }
+      else
+      {
+        $logonType
+      }
+
+      if ($failureReason)
+      {
+        $rawFailureReason = $failureReason -as [string]
+        $failureReason = if ($failureReasonMap.ContainsKey($rawFailureReason))
+        {
+          $failureReasonMap[$rawFailureReason]
+        }
+        else
+        {
+          $rawFailureReason
+        }
+      }
+
+      if ($status)
+      {
+        $rawStatus = $status -as [string]
+        $status = if ($ntStatusMap.ContainsKey($rawStatus))
+        {
+          "$rawStatus ($($ntStatusMap[$rawStatus]))"
+        }
+        else
+        {
+          $rawStatus
+        }
+      }
+
+      if ($subStatus)
+      {
+        $rawSubStatus = $subStatus -as [string]
+        $subStatus = if ($ntStatusMap.ContainsKey($rawSubStatus))
+        {
+          "$rawSubStatus ($($ntStatusMap[$rawSubStatus]))"
+        }
+        else
+        {
+          $rawSubStatus
+        }
+      }
+
+      [PSCustomObject]@{
+        EventId                   = $eventId
+        Time                      = $Event.TimeCreated
+        UserName                  = $Event.Properties[5].Value
+        TargetDomainName          = $Event.Properties[6].Value
+        LogonType                 = $logonType
+        LogonProcessName          = $logonProcessName
+        AuthenticationPackageName = $authPackageName
+        WorkstationName           = $workstationName
+        LmPackageName             = $lmPackageName
+        IPAddress                 = $ipAddress
+        TCPPort                   = $tcpPort
+        ImpersonationLevel        = $impersonationLevel
+        ProcessName               = $processName
+        Status                    = $status
+        FailureReason             = $failureReason
+        SubStatus                 = $subStatus
+        TargetLogonId             = $targetLogonId
+        Message                   = $Event.Message
+        ComputerName              = $env:COMPUTERNAME
+      }
+    }
+
+    $events = @(Get-WinEvent -LogName Security -MaxEvents $MaxEvents -FilterXPath $Filter -ErrorAction Stop |
+        ForEach-Object { Convert-RemoteEvent -Event $_ -ComputerName $env:COMPUTERNAME })
+
+    if ($DoCorrelatePrivileged -and $events.Count -gt 0)
+    {
+      # Correlate with Event ID 4672 (special privileges assigned to new logon)
+      $successEvents = @($events | Where-Object { $_.EventId -eq 4624 -and $_.TargetLogonId })
+      if ($successEvents.Count -gt 0)
+      {
+        $times = $successEvents | ForEach-Object { $_.Time }
+        $earliest = ($times | Measure-Object -Minimum).Minimum.AddSeconds(-2)
+        $latest = ($times | Measure-Object -Maximum).Maximum.AddSeconds(2)
+        $startUtc = $earliest.ToUniversalTime().ToString('yyyy-MM-ddTHH:mm:ss.fffZ')
+        $endUtc = $latest.ToUniversalTime().ToString('yyyy-MM-ddTHH:mm:ss.fffZ')
+        $xpath4672 = "Event[System[EventID=4672 and TimeCreated[@SystemTime>='$startUtc'] and TimeCreated[@SystemTime<='$endUtc']]]"
+
+        $lookup = @{}
+        try
+        {
+          Get-WinEvent -LogName Security -FilterXPath $xpath4672 -ErrorAction Stop | ForEach-Object {
+            $logonId = $_.Properties[3].Value -as [string]
+            $privileges = ($_.Properties[4].Value -as [string]).Trim()
+            if ($logonId -and -not $lookup.ContainsKey($logonId))
+            {
+              $lookup[$logonId] = $privileges
+            }
+          }
+        }
+        catch
+        {
+          if ($_.Exception.Message -notmatch 'No events were found')
+          {
+            Write-Warning "Failed to query Event ID 4672: $_"
+          }
+        }
+
+        foreach ($evt in $events)
+        {
+          if ($evt.EventId -eq 4624 -and $evt.TargetLogonId -and $lookup.ContainsKey($evt.TargetLogonId))
+          {
+            $evt | Add-Member -NotePropertyName IsPrivileged -NotePropertyValue $true -Force
+            $evt | Add-Member -NotePropertyName PrivilegeList -NotePropertyValue $lookup[$evt.TargetLogonId] -Force
+          }
+          else
+          {
+            $evt | Add-Member -NotePropertyName IsPrivileged -NotePropertyValue $false -Force
+            $evt | Add-Member -NotePropertyName PrivilegeList -NotePropertyValue $null -Force
           }
         }
       }
-      catch {
-        if ($_.Exception.Message -notmatch 'No events were found') {
-          Write-Warning "Failed to query Event ID 4672: $_"
-        }
-      }
-
-      foreach ($evt in $events) {
-        if ($evt.EventId -eq 4624 -and $evt.TargetLogonId -and $lookup.ContainsKey($evt.TargetLogonId)) {
-          $evt | Add-Member -NotePropertyName IsPrivileged -NotePropertyValue $true -Force
-          $evt | Add-Member -NotePropertyName PrivilegeList -NotePropertyValue $lookup[$evt.TargetLogonId] -Force
-        }
-        else {
+      else
+      {
+        foreach ($evt in $events)
+        {
           $evt | Add-Member -NotePropertyName IsPrivileged -NotePropertyValue $false -Force
           $evt | Add-Member -NotePropertyName PrivilegeList -NotePropertyValue $null -Force
         }
       }
     }
-    else {
-      foreach ($evt in $events) {
-        $evt | Add-Member -NotePropertyName IsPrivileged -NotePropertyValue $false -Force
-        $evt | Add-Member -NotePropertyName PrivilegeList -NotePropertyValue $null -Force
+
+    $events
+  }
+
+  # Build Invoke-Command splat (add credential only when provided)
+  $invokeParams = @{
+    ScriptBlock  = $remoteScriptBlock
+    ArgumentList = @($xpathFilter, $NumEvents, $CorrelatePrivileged.IsPresent)
+    ErrorAction  = 'Stop'
+  }
+  if ($Credential -ne [System.Management.Automation.PSCredential]::Empty)
+  {
+    $invokeParams['Credential'] = $Credential
+  }
+  if ($PSBoundParameters.ContainsKey('Authentication'))
+  {
+    $invokeParams['Authentication'] = $Authentication
+  }
+
+  # NTLM Operational log setup (if requested)
+  if ($IncludeNtlmOperationalLog)
+  {
+    $ntlmOpFilterParams = @{}
+    if ($PSBoundParameters.ContainsKey('StartTime'))
+    {
+      $ntlmOpFilterParams['StartTime'] = $StartTime 
+    }
+    if ($PSBoundParameters.ContainsKey('EndTime'))
+    {
+      $ntlmOpFilterParams['EndTime'] = $EndTime 
+    }
+    $ntlmOpFilter = Build-NtlmOperationalXPathFilter @ntlmOpFilterParams
+
+    $ntlmOpOutputProperties = @(
+      'EventId', 'EventType', 'EventDescription', 'Time',
+      'UserName', 'DomainName', 'TargetName', 'WorkstationName',
+      'SecureChannelName', 'ProcessName', 'ProcessId'
+    )
+    if ($IncludeMessage)
+    {
+      $ntlmOpOutputProperties += 'Message'
+    }
+    $ntlmOpOutputProperties += 'ComputerName'
+
+    # Remote script block for NTLM Operational log queries
+    $ntlmOpRemoteScriptBlock = {
+      param($Filter, $MaxEvents)
+
+      $descMap = @{
+        8001 = 'Outgoing NTLM authentication (client-side)'
+        8002 = 'Incoming NTLM authentication (local account / loopback)'
+        8003 = 'Incoming NTLM authentication (domain account, server-side)'
+        8004 = 'NTLM credential validation (domain controller)'
+        8005 = 'Direct NTLM authentication to domain controller'
+        8006 = 'Cross-domain NTLM authentication (domain controller)'
+        4001 = 'Outgoing NTLM blocked (client-side)'
+        4002 = 'Incoming NTLM blocked (local account / loopback)'
+        4003 = 'Incoming NTLM blocked (domain account, server-side)'
+        4004 = 'NTLM credential validation blocked (domain controller)'
+        4005 = 'Direct NTLM authentication blocked (domain controller)'
+        4006 = 'Cross-domain NTLM authentication blocked (domain controller)'
       }
-    }
-  }
 
-  $events
-}
-
-# Build Invoke-Command splat (add credential only when provided)
-$invokeParams = @{
-  ScriptBlock  = $remoteScriptBlock
-  ArgumentList = @($xpathFilter, $NumEvents, $CorrelatePrivileged.IsPresent)
-  ErrorAction  = 'Stop'
-}
-if ($Credential -ne [System.Management.Automation.PSCredential]::Empty) {
-  $invokeParams['Credential'] = $Credential
-}
-if ($PSBoundParameters.ContainsKey('Authentication')) {
-  $invokeParams['Authentication'] = $Authentication
-}
-
-# NTLM Operational log setup (if requested)
-if ($IncludeNtlmOperationalLog) {
-  $ntlmOpFilterParams = @{}
-  if ($PSBoundParameters.ContainsKey('StartTime')) { $ntlmOpFilterParams['StartTime'] = $StartTime }
-  if ($PSBoundParameters.ContainsKey('EndTime')) { $ntlmOpFilterParams['EndTime'] = $EndTime }
-  $ntlmOpFilter = Build-NtlmOperationalXPathFilter @ntlmOpFilterParams
-
-  $ntlmOpOutputProperties = @(
-    'EventId', 'EventType', 'EventDescription', 'Time',
-    'UserName', 'DomainName', 'TargetName', 'WorkstationName',
-    'SecureChannelName', 'ProcessName', 'ProcessId'
-  )
-  if ($IncludeMessage) {
-    $ntlmOpOutputProperties += 'Message'
-  }
-  $ntlmOpOutputProperties += 'ComputerName'
-
-  # Remote script block for NTLM Operational log queries
-  $ntlmOpRemoteScriptBlock = {
-    param($Filter, $MaxEvents)
-
-    $descMap = @{
-      8001 = 'Outgoing NTLM authentication (client-side)'
-      8002 = 'Incoming NTLM authentication (local account / loopback)'
-      8003 = 'Incoming NTLM authentication (domain account, server-side)'
-      8004 = 'NTLM credential validation (domain controller)'
-      8005 = 'Direct NTLM authentication to domain controller'
-      8006 = 'Cross-domain NTLM authentication (domain controller)'
-      4001 = 'Outgoing NTLM blocked (client-side)'
-      4002 = 'Incoming NTLM blocked (local account / loopback)'
-      4003 = 'Incoming NTLM blocked (domain account, server-side)'
-      4004 = 'NTLM credential validation blocked (domain controller)'
-      4005 = 'Direct NTLM authentication blocked (domain controller)'
-      4006 = 'Cross-domain NTLM authentication blocked (domain controller)'
-    }
-
-    try {
-      Get-WinEvent -LogName 'Microsoft-Windows-NTLM/Operational' -MaxEvents $MaxEvents -FilterXPath $Filter -ErrorAction Stop | ForEach-Object {
-        $eventId = $_.Id
-        $p = $_.Properties
-        $timeCreated = $_.TimeCreated
-        if (-not $p -or $p.Count -eq 0) { return }
-        $isBlock = ($eventId -ge 4001 -and $eventId -le 4006)
-        $eventType = if ($isBlock) { 'Block' } else { 'Audit' }
-        $baseId = if ($isBlock) { $eventId + 4000 } else { $eventId }
-
-        switch ($baseId) {
-          '8001' {
-            [PSCustomObject]@{
-              EventId           = $eventId
-              EventType         = $eventType
-              EventDescription  = $descMap[$eventId]
-              Time              = $timeCreated
-              UserName          = if ($p.Count -gt 1) { $p[1].Value } else { $null }
-              DomainName        = if ($p.Count -gt 2) { $p[2].Value } else { $null }
-              TargetName        = if ($p.Count -gt 0) { $p[0].Value } else { $null }
-              WorkstationName   = $null
-              SecureChannelName = $null
-              ProcessName       = if ($p.Count -gt 3) { $p[3].Value } else { $null }
-              ProcessId         = if ($p.Count -gt 4) { $p[4].Value } else { $null }
-              Message           = $_.Message
-              ComputerName      = $env:COMPUTERNAME
-            }
+      try
+      {
+        Get-WinEvent -LogName 'Microsoft-Windows-NTLM/Operational' -MaxEvents $MaxEvents -FilterXPath $Filter -ErrorAction Stop | ForEach-Object {
+          $eventId = $_.Id
+          $p = $_.Properties
+          $timeCreated = $_.TimeCreated
+          if (-not $p -or $p.Count -eq 0)
+          {
+            return 
           }
-          { $_ -in 8002, 8003 } {
-            [PSCustomObject]@{
-              EventId           = $eventId
-              EventType         = $eventType
-              EventDescription  = $descMap[$eventId]
-              Time              = $timeCreated
-              UserName          = if ($p.Count -gt 0) { $p[0].Value } else { $null }
-              DomainName        = if ($p.Count -gt 1) { $p[1].Value } else { $null }
-              TargetName        = $null
-              WorkstationName   = if ($p.Count -gt 2) { $p[2].Value } else { $null }
-              SecureChannelName = $null
-              ProcessName       = if ($p.Count -gt 3) { $p[3].Value } else { $null }
-              ProcessId         = if ($p.Count -gt 4) { $p[4].Value } else { $null }
-              Message           = $_.Message
-              ComputerName      = $env:COMPUTERNAME
-            }
+          $isBlock = ($eventId -ge 4001 -and $eventId -le 4006)
+          $eventType = if ($isBlock)
+          {
+            'Block' 
           }
-          { $_ -in 8004, 8005, 8006 } {
-            [PSCustomObject]@{
-              EventId           = $eventId
-              EventType         = $eventType
-              EventDescription  = $descMap[$eventId]
-              Time              = $timeCreated
-              UserName          = if ($p.Count -gt 0) { $p[0].Value } else { $null }
-              DomainName        = if ($p.Count -gt 1) { $p[1].Value } else { $null }
-              TargetName        = $null
-              WorkstationName   = if ($p.Count -gt 2) { $p[2].Value } else { $null }
-              SecureChannelName = if ($p.Count -gt 3) { $p[3].Value } else { $null }
-              ProcessName       = $null
-              ProcessId         = $null
-              Message           = $_.Message
-              ComputerName      = $env:COMPUTERNAME
+          else
+          {
+            'Audit' 
+          }
+          $baseId = if ($isBlock)
+          {
+            $eventId + 4000 
+          }
+          else
+          {
+            $eventId 
+          }
+
+          switch ($baseId)
+          {
+            '8001'
+            {
+              [PSCustomObject]@{
+                EventId           = $eventId
+                EventType         = $eventType
+                EventDescription  = $descMap[$eventId]
+                Time              = $timeCreated
+                UserName          = if ($p.Count -gt 1)
+                {
+                  $p[1].Value 
+                }
+                else
+                {
+                  $null 
+                }
+                DomainName        = if ($p.Count -gt 2)
+                {
+                  $p[2].Value 
+                }
+                else
+                {
+                  $null 
+                }
+                TargetName        = if ($p.Count -gt 0)
+                {
+                  $p[0].Value 
+                }
+                else
+                {
+                  $null 
+                }
+                WorkstationName   = $null
+                SecureChannelName = $null
+                ProcessName       = if ($p.Count -gt 3)
+                {
+                  $p[3].Value 
+                }
+                else
+                {
+                  $null 
+                }
+                ProcessId         = if ($p.Count -gt 4)
+                {
+                  $p[4].Value 
+                }
+                else
+                {
+                  $null 
+                }
+                Message           = $_.Message
+                ComputerName      = $env:COMPUTERNAME
+              }
+            }
+            { $_ -in 8002, 8003 }
+            {
+              [PSCustomObject]@{
+                EventId           = $eventId
+                EventType         = $eventType
+                EventDescription  = $descMap[$eventId]
+                Time              = $timeCreated
+                UserName          = if ($p.Count -gt 0)
+                {
+                  $p[0].Value 
+                }
+                else
+                {
+                  $null 
+                }
+                DomainName        = if ($p.Count -gt 1)
+                {
+                  $p[1].Value 
+                }
+                else
+                {
+                  $null 
+                }
+                TargetName        = $null
+                WorkstationName   = if ($p.Count -gt 2)
+                {
+                  $p[2].Value 
+                }
+                else
+                {
+                  $null 
+                }
+                SecureChannelName = $null
+                ProcessName       = if ($p.Count -gt 3)
+                {
+                  $p[3].Value 
+                }
+                else
+                {
+                  $null 
+                }
+                ProcessId         = if ($p.Count -gt 4)
+                {
+                  $p[4].Value 
+                }
+                else
+                {
+                  $null 
+                }
+                Message           = $_.Message
+                ComputerName      = $env:COMPUTERNAME
+              }
+            }
+            { $_ -in 8004, 8005, 8006 }
+            {
+              [PSCustomObject]@{
+                EventId           = $eventId
+                EventType         = $eventType
+                EventDescription  = $descMap[$eventId]
+                Time              = $timeCreated
+                UserName          = if ($p.Count -gt 0)
+                {
+                  $p[0].Value 
+                }
+                else
+                {
+                  $null 
+                }
+                DomainName        = if ($p.Count -gt 1)
+                {
+                  $p[1].Value 
+                }
+                else
+                {
+                  $null 
+                }
+                TargetName        = $null
+                WorkstationName   = if ($p.Count -gt 2)
+                {
+                  $p[2].Value 
+                }
+                else
+                {
+                  $null 
+                }
+                SecureChannelName = if ($p.Count -gt 3)
+                {
+                  $p[3].Value 
+                }
+                else
+                {
+                  $null 
+                }
+                ProcessName       = $null
+                ProcessId         = $null
+                Message           = $_.Message
+                ComputerName      = $env:COMPUTERNAME
+              }
             }
           }
         }
       }
-    }
-    catch {
-      if ($_.Exception.Message -notmatch 'No events were found') {
-        Write-Warning "Failed to query NTLM Operational log: $_"
+      catch
+      {
+        if ($_.Exception.Message -notmatch 'No events were found')
+        {
+          Write-Warning "Failed to query NTLM Operational log: $_"
+        }
       }
     }
   }
-}
 
-if ($Target -eq 'Localhost' -and -not $PSBoundParameters.ContainsKey('ComputerName')) {
-  # --- Local host ---
-  $eventIdLabel = if ($IncludeFailedLogons) { 'Event ID 4624+4625' } else { 'Event ID 4624' }
-  Write-Verbose "Querying Security log for $ntlmVersionLabel events ($eventIdLabel) on $env:COMPUTERNAME"
-
-  try {
-    $events = @(Get-WinEvent -LogName Security -MaxEvents $NumEvents -FilterXPath $xpathFilter -ErrorAction Stop |
-      Convert-EventToObject -ComputerName $env:COMPUTERNAME)
-
-    if ($CorrelatePrivileged -and $events.Count -gt 0) {
-      Write-Verbose 'Correlating with Event ID 4672 (special privileges assigned to new logon)...'
-      Merge-PrivilegedLogonData -Events $events
+  if ($Target -eq 'Localhost' -and -not $PSBoundParameters.ContainsKey('ComputerName'))
+  {
+    # --- Local host ---
+    $eventIdLabel = if ($IncludeFailedLogons)
+    {
+      'Event ID 4624+4625' 
     }
-
-    $events | Select-Object $outputProperties
-  }
-  catch [Exception] {
-    if ($_.Exception.Message -match 'No events were found') {
-      Write-Warning "No matching $ntlmVersionLabel logon events found on $env:COMPUTERNAME."
+    else
+    {
+      'Event ID 4624' 
     }
-    else {
-      Write-Error "Failed to query $env:COMPUTERNAME : $_"
-    }
-  }
+    Write-Verbose "Querying Security log for $ntlmVersionLabel events ($eventIdLabel) on $env:COMPUTERNAME"
 
-  # NTLM Operational log (process-level detail)
-  if ($IncludeNtlmOperationalLog) {
-    Write-Verbose 'Querying Microsoft-Windows-NTLM/Operational log for NTLM audit/block events...'
-    try {
-      $ntlmOpEvents = Get-WinEvent -LogName 'Microsoft-Windows-NTLM/Operational' -MaxEvents $NumEvents -FilterXPath $ntlmOpFilter -ErrorAction Stop |
-      Convert-NtlmOperationalEventToObject -ComputerName $env:COMPUTERNAME
-      if ($ExcludeNullSessions) {
-        $ntlmOpEvents | Where-Object { $_.UserName -and $_.UserName -ne '(NULL)' } |
-        Select-Object $ntlmOpOutputProperties
+    try
+    {
+      $events = @(Get-WinEvent -LogName Security -MaxEvents $NumEvents -FilterXPath $xpathFilter -ErrorAction Stop |
+          Convert-EventToObject -ComputerName $env:COMPUTERNAME)
+
+      if ($CorrelatePrivileged -and $events.Count -gt 0)
+      {
+        Write-Verbose 'Correlating with Event ID 4672 (special privileges assigned to new logon)...'
+        Merge-PrivilegedLogonData -Events $events
       }
-      else {
-        $ntlmOpEvents | Select-Object $ntlmOpOutputProperties
+
+      $events | Select-Object $outputProperties
+    }
+    catch [Exception]
+    {
+      if ($_.Exception.Message -match 'No events were found')
+      {
+        Write-Warning "No matching $ntlmVersionLabel logon events found on $env:COMPUTERNAME."
+      }
+      else
+      {
+        Write-Error "Failed to query $env:COMPUTERNAME : $_"
       }
     }
-    catch {
-      if ($_.Exception.Message -match 'No events were found') {
-        Write-Warning "No NTLM operational events found on $env:COMPUTERNAME. Ensure NTLM auditing policies are configured (use -CheckAuditConfig to verify)."
-      }
-      else {
-        Write-Warning "Failed to query NTLM Operational log on ${env:COMPUTERNAME}: $_"
-      }
-    }
-  }
-}
-elseif ($Target -eq 'DCs') {
-  # --- All Domain Controllers ---
-  Write-Verbose "Loading ActiveDirectory module to enumerate domain controllers..."
 
-  try {
-    Import-Module ActiveDirectory -ErrorAction Stop
-  }
-  catch {
-    Write-Error "The ActiveDirectory PowerShell module is required for -Target DCs. Install RSAT or run from a DC. Error: $_"
-    return
-  }
-
-  try {
-    $domainControllers = if ($Domain) {
-      Get-ADDomainController -Filter * -Server $Domain -ErrorAction Stop | Select-Object -ExpandProperty HostName
-    }
-    else {
-      Get-ADDomainController -Filter * -ErrorAction Stop | Select-Object -ExpandProperty HostName
-    }
-  }
-  catch {
-    Write-Error "Failed to enumerate domain controllers. Ensure this machine can reach Active Directory Web Services (ADWS). Azure AD-joined clients without line-of-sight to a domain controller cannot use -Target DCs. Error: $_"
-    return
-  }
-  if (-not $domainControllers) {
-    Write-Error 'No domain controllers were found. Verify the domain name and network connectivity.'
-    return
-  }
-  $domainLabel = if ($Domain) { " in domain '$Domain'" } else { '' }
-  Write-Verbose "Querying Security log for $ntlmVersionLabel events on DCs${domainLabel}: $($domainControllers -join ', ')"
-
-  $invokeParams['ComputerName'] = $domainControllers
-
-  try {
-    Invoke-Command @invokeParams |
-    Select-Object $outputProperties
-  }
-  catch {
-    if ($_.Exception.Message -match 'No events were found') {
-      Write-Warning "No matching $ntlmVersionLabel logon events found on domain controllers$domainLabel."
-    }
-    else {
-      Write-Error "Failed to query domain controllers: $_"
-    }
-  }
-
-  # NTLM Operational log on DCs
-  if ($IncludeNtlmOperationalLog) {
-    Write-Verbose "Querying Microsoft-Windows-NTLM/Operational log on DCs${domainLabel}..."
-    $ntlmOpInvokeParams = @{
-      ScriptBlock  = $ntlmOpRemoteScriptBlock
-      ComputerName = $domainControllers
-      ArgumentList = @($ntlmOpFilter, $NumEvents)
-      ErrorAction  = 'Stop'
-    }
-    if ($Credential -ne [System.Management.Automation.PSCredential]::Empty) {
-      $ntlmOpInvokeParams['Credential'] = $Credential
-    }
-    if ($PSBoundParameters.ContainsKey('Authentication')) {
-      $ntlmOpInvokeParams['Authentication'] = $Authentication
-    }
-    try {
-      $ntlmOpResults = Invoke-Command @ntlmOpInvokeParams |
-      Select-Object $ntlmOpOutputProperties
-      if ($ExcludeNullSessions) {
-        $ntlmOpResults | Where-Object { $_.UserName -and $_.UserName -ne '(NULL)' }
+    # NTLM Operational log (process-level detail)
+    if ($IncludeNtlmOperationalLog)
+    {
+      Write-Verbose 'Querying Microsoft-Windows-NTLM/Operational log for NTLM audit/block events...'
+      try
+      {
+        $ntlmOpEvents = Get-WinEvent -LogName 'Microsoft-Windows-NTLM/Operational' -MaxEvents $NumEvents -FilterXPath $ntlmOpFilter -ErrorAction Stop |
+          Convert-NtlmOperationalEventToObject -ComputerName $env:COMPUTERNAME
+        if ($ExcludeNullSessions)
+        {
+          $ntlmOpEvents | Where-Object { $_.UserName -and $_.UserName -ne '(NULL)' } |
+            Select-Object $ntlmOpOutputProperties
+        }
+        else
+        {
+          $ntlmOpEvents | Select-Object $ntlmOpOutputProperties
+        }
       }
-      else {
-        $ntlmOpResults
-      }
-    }
-    catch {
-      if ($_.Exception.Message -match 'No events were found') {
-        Write-Warning 'No NTLM operational events found on domain controllers. Ensure NTLM auditing policies are configured.'
-      }
-      else {
-        Write-Warning "Failed to query NTLM Operational log on domain controllers: $_"
+      catch
+      {
+        if ($_.Exception.Message -match 'No events were found')
+        {
+          Write-Warning "No NTLM operational events found on $env:COMPUTERNAME. Ensure NTLM auditing policies are configured (use -CheckAuditConfig to verify)."
+        }
+        else
+        {
+          Write-Warning "Failed to query NTLM Operational log on ${env:COMPUTERNAME}: $_"
+        }
       }
     }
   }
-}
-elseif ($Target -eq 'Forest') {
-  # --- All Domain Controllers across the Forest ---
-  Write-Verbose "Loading ActiveDirectory module to enumerate all forest domain controllers..."
+  elseif ($Target -eq 'DCs')
+  {
+    # --- All Domain Controllers ---
+    Write-Verbose "Loading ActiveDirectory module to enumerate domain controllers..."
 
-  try {
-    Import-Module ActiveDirectory -ErrorAction Stop
-  }
-  catch {
-    Write-Error "The ActiveDirectory PowerShell module is required for -Target Forest. Install RSAT or run from a DC. Error: $_"
-    return
-  }
-
-  try {
-    $forestDomains = (Get-ADForest -ErrorAction Stop).Domains
-  }
-  catch {
-    Write-Error "Failed to enumerate forest domains. Ensure this machine can reach Active Directory Web Services (ADWS). Azure AD-joined clients without line-of-sight to a domain controller cannot use -Target Forest. Error: $_"
-    return
-  }
-  Write-Verbose "Forest domains: $($forestDomains -join ', ')"
-  $domainDCMap = @{}
-  $allDCs = foreach ($dom in $forestDomains) {
-    try {
-      $dcs = @(Get-ADDomainController -Filter * -Server $dom -ErrorAction Stop | Select-Object -ExpandProperty HostName)
-      $domainDCMap[$dom] = $dcs
-      $dcs
+    try
+    {
+      Import-Module ActiveDirectory -ErrorAction Stop
     }
-    catch {
-      Write-Warning "Failed to enumerate DCs in domain '${dom}': $_"
+    catch
+    {
+      Write-Error "The ActiveDirectory PowerShell module is required for -Target DCs. Install RSAT or run from a DC. Error: $_"
+      return
     }
-  }
-  if (-not $allDCs) {
-    Write-Error 'No domain controllers could be enumerated across the forest.'
-    return
-  }
-  Write-Verbose "Querying Security log for $ntlmVersionLabel events on forest DCs: $($allDCs -join ', ')"
 
-  foreach ($dom in $domainDCMap.Keys) {
-    $domDCs = $domainDCMap[$dom]
-    Write-Verbose "Querying Security log on DCs in domain '${dom}': $($domDCs -join ', ')"
-    $invokeParams['ComputerName'] = $domDCs
-    try {
+    try
+    {
+      $domainControllers = if ($Domain)
+      {
+        Get-ADDomainController -Filter * -Server $Domain -ErrorAction Stop | Select-Object -ExpandProperty HostName
+      }
+      else
+      {
+        Get-ADDomainController -Filter * -ErrorAction Stop | Select-Object -ExpandProperty HostName
+      }
+    }
+    catch
+    {
+      Write-Error "Failed to enumerate domain controllers. Ensure this machine can reach Active Directory Web Services (ADWS). Azure AD-joined clients without line-of-sight to a domain controller cannot use -Target DCs. Error: $_"
+      return
+    }
+    if (-not $domainControllers)
+    {
+      Write-Error 'No domain controllers were found. Verify the domain name and network connectivity.'
+      return
+    }
+    $domainLabel = if ($Domain)
+    {
+      " in domain '$Domain'" 
+    }
+    else
+    {
+      '' 
+    }
+    Write-Verbose "Querying Security log for $ntlmVersionLabel events on DCs${domainLabel}: $($domainControllers -join ', ')"
+
+    $invokeParams['ComputerName'] = $domainControllers
+
+    try
+    {
       Invoke-Command @invokeParams |
-      Select-Object $outputProperties
+        Select-Object $outputProperties
     }
-    catch {
-      if ($_.Exception.Message -match 'No events were found') {
-        Write-Warning "No matching $ntlmVersionLabel logon events found on DCs in domain '${dom}'."
+    catch
+    {
+      if ($_.Exception.Message -match 'No events were found')
+      {
+        Write-Warning "No matching $ntlmVersionLabel logon events found on domain controllers$domainLabel."
       }
-      else {
-        Write-Warning "Failed to query DCs in domain '${dom}': $_"
+      else
+      {
+        Write-Error "Failed to query domain controllers: $_"
       }
     }
 
-    # NTLM Operational log per domain
-    if ($IncludeNtlmOperationalLog) {
-      Write-Verbose "Querying Microsoft-Windows-NTLM/Operational log on DCs in domain '${dom}'..."
+    # NTLM Operational log on DCs
+    if ($IncludeNtlmOperationalLog)
+    {
+      Write-Verbose "Querying Microsoft-Windows-NTLM/Operational log on DCs${domainLabel}..."
       $ntlmOpInvokeParams = @{
         ScriptBlock  = $ntlmOpRemoteScriptBlock
-        ComputerName = $domDCs
+        ComputerName = $domainControllers
         ArgumentList = @($ntlmOpFilter, $NumEvents)
         ErrorAction  = 'Stop'
       }
-      if ($Credential -ne [System.Management.Automation.PSCredential]::Empty) {
+      if ($Credential -ne [System.Management.Automation.PSCredential]::Empty)
+      {
         $ntlmOpInvokeParams['Credential'] = $Credential
       }
-      if ($PSBoundParameters.ContainsKey('Authentication')) {
+      if ($PSBoundParameters.ContainsKey('Authentication'))
+      {
         $ntlmOpInvokeParams['Authentication'] = $Authentication
       }
-      try {
+      try
+      {
         $ntlmOpResults = Invoke-Command @ntlmOpInvokeParams |
-        Select-Object $ntlmOpOutputProperties
-        if ($ExcludeNullSessions) {
+          Select-Object $ntlmOpOutputProperties
+        if ($ExcludeNullSessions)
+        {
           $ntlmOpResults | Where-Object { $_.UserName -and $_.UserName -ne '(NULL)' }
         }
-        else {
+        else
+        {
           $ntlmOpResults
         }
       }
-      catch {
-        if ($_.Exception.Message -match 'No events were found') {
-          Write-Warning "No NTLM operational events found on DCs in domain '${dom}'. Ensure NTLM auditing policies are configured."
+      catch
+      {
+        if ($_.Exception.Message -match 'No events were found')
+        {
+          Write-Warning 'No NTLM operational events found on domain controllers. Ensure NTLM auditing policies are configured.'
         }
-        else {
-          Write-Warning "Failed to query NTLM Operational log on DCs in domain '${dom}': $_"
+        else
+        {
+          Write-Warning "Failed to query NTLM Operational log on domain controllers: $_"
         }
       }
     }
   }
-}
-elseif ($PSBoundParameters.ContainsKey('ComputerName')) {
-  # --- Specific remote host(s) ---
-  $eventIdLabel = if ($IncludeFailedLogons) { 'Event ID 4624+4625' } else { 'Event ID 4624' }
-  Write-Verbose "Querying Security log for $ntlmVersionLabel events ($eventIdLabel) on remote host(s): $($ComputerName -join ', ')"
+  elseif ($Target -eq 'Forest')
+  {
+    # --- All Domain Controllers across the Forest ---
+    Write-Verbose "Loading ActiveDirectory module to enumerate all forest domain controllers..."
 
-  $invokeParams['ComputerName'] = $ComputerName
+    try
+    {
+      Import-Module ActiveDirectory -ErrorAction Stop
+    }
+    catch
+    {
+      Write-Error "The ActiveDirectory PowerShell module is required for -Target Forest. Install RSAT or run from a DC. Error: $_"
+      return
+    }
 
-  try {
-    Invoke-Command @invokeParams |
-    Select-Object $outputProperties
+    try
+    {
+      $forestDomains = (Get-ADForest -ErrorAction Stop).Domains
+    }
+    catch
+    {
+      Write-Error "Failed to enumerate forest domains. Ensure this machine can reach Active Directory Web Services (ADWS). Azure AD-joined clients without line-of-sight to a domain controller cannot use -Target Forest. Error: $_"
+      return
+    }
+    Write-Verbose "Forest domains: $($forestDomains -join ', ')"
+    $domainDCMap = @{}
+    $allDCs = foreach ($dom in $forestDomains)
+    {
+      try
+      {
+        $dcs = @(Get-ADDomainController -Filter * -Server $dom -ErrorAction Stop | Select-Object -ExpandProperty HostName)
+        $domainDCMap[$dom] = $dcs
+        $dcs
+      }
+      catch
+      {
+        Write-Warning "Failed to enumerate DCs in domain '${dom}': $_"
+      }
+    }
+    if (-not $allDCs)
+    {
+      Write-Error 'No domain controllers could be enumerated across the forest.'
+      return
+    }
+    Write-Verbose "Querying Security log for $ntlmVersionLabel events on forest DCs: $($allDCs -join ', ')"
+
+    foreach ($dom in $domainDCMap.Keys)
+    {
+      $domDCs = $domainDCMap[$dom]
+      Write-Verbose "Querying Security log on DCs in domain '${dom}': $($domDCs -join ', ')"
+      $invokeParams['ComputerName'] = $domDCs
+      try
+      {
+        Invoke-Command @invokeParams |
+          Select-Object $outputProperties
+      }
+      catch
+      {
+        if ($_.Exception.Message -match 'No events were found')
+        {
+          Write-Warning "No matching $ntlmVersionLabel logon events found on DCs in domain '${dom}'."
+        }
+        else
+        {
+          Write-Warning "Failed to query DCs in domain '${dom}': $_"
+        }
+      }
+
+      # NTLM Operational log per domain
+      if ($IncludeNtlmOperationalLog)
+      {
+        Write-Verbose "Querying Microsoft-Windows-NTLM/Operational log on DCs in domain '${dom}'..."
+        $ntlmOpInvokeParams = @{
+          ScriptBlock  = $ntlmOpRemoteScriptBlock
+          ComputerName = $domDCs
+          ArgumentList = @($ntlmOpFilter, $NumEvents)
+          ErrorAction  = 'Stop'
+        }
+        if ($Credential -ne [System.Management.Automation.PSCredential]::Empty)
+        {
+          $ntlmOpInvokeParams['Credential'] = $Credential
+        }
+        if ($PSBoundParameters.ContainsKey('Authentication'))
+        {
+          $ntlmOpInvokeParams['Authentication'] = $Authentication
+        }
+        try
+        {
+          $ntlmOpResults = Invoke-Command @ntlmOpInvokeParams |
+            Select-Object $ntlmOpOutputProperties
+          if ($ExcludeNullSessions)
+          {
+            $ntlmOpResults | Where-Object { $_.UserName -and $_.UserName -ne '(NULL)' }
+          }
+          else
+          {
+            $ntlmOpResults
+          }
+        }
+        catch
+        {
+          if ($_.Exception.Message -match 'No events were found')
+          {
+            Write-Warning "No NTLM operational events found on DCs in domain '${dom}'. Ensure NTLM auditing policies are configured."
+          }
+          else
+          {
+            Write-Warning "Failed to query NTLM Operational log on DCs in domain '${dom}': $_"
+          }
+        }
+      }
+    }
   }
-  catch [Exception] {
-    if ($_.Exception.Message -match 'No events were found') {
-      Write-Warning "No matching $ntlmVersionLabel logon events found on $($ComputerName -join ', ')."
+  elseif ($PSBoundParameters.ContainsKey('ComputerName'))
+  {
+    # --- Specific remote host(s) ---
+    $eventIdLabel = if ($IncludeFailedLogons)
+    {
+      'Event ID 4624+4625' 
     }
-    else {
-      Write-Error "Failed to query $($ComputerName -join ', '): $_"
+    else
+    {
+      'Event ID 4624' 
+    }
+    Write-Verbose "Querying Security log for $ntlmVersionLabel events ($eventIdLabel) on remote host(s): $($ComputerName -join ', ')"
+
+    $invokeParams['ComputerName'] = $ComputerName
+
+    try
+    {
+      Invoke-Command @invokeParams |
+        Select-Object $outputProperties
+    }
+    catch [Exception]
+    {
+      if ($_.Exception.Message -match 'No events were found')
+      {
+        Write-Warning "No matching $ntlmVersionLabel logon events found on $($ComputerName -join ', ')."
+      }
+      else
+      {
+        Write-Error "Failed to query $($ComputerName -join ', '): $_"
+      }
+    }
+
+    # NTLM Operational log on remote host(s)
+    if ($IncludeNtlmOperationalLog)
+    {
+      Write-Verbose "Querying Microsoft-Windows-NTLM/Operational log on remote host(s): $($ComputerName -join ', ')"
+      $ntlmOpInvokeParams = @{
+        ScriptBlock  = $ntlmOpRemoteScriptBlock
+        ComputerName = $ComputerName
+        ArgumentList = @($ntlmOpFilter, $NumEvents)
+        ErrorAction  = 'Stop'
+      }
+      if ($Credential -ne [System.Management.Automation.PSCredential]::Empty)
+      {
+        $ntlmOpInvokeParams['Credential'] = $Credential
+      }
+      if ($PSBoundParameters.ContainsKey('Authentication'))
+      {
+        $ntlmOpInvokeParams['Authentication'] = $Authentication
+      }
+      try
+      {
+        $ntlmOpResults = Invoke-Command @ntlmOpInvokeParams |
+          Select-Object $ntlmOpOutputProperties
+        if ($ExcludeNullSessions)
+        {
+          $ntlmOpResults | Where-Object { $_.UserName -and $_.UserName -ne '(NULL)' }
+        }
+        else
+        {
+          $ntlmOpResults
+        }
+      }
+      catch
+      {
+        if ($_.Exception.Message -match 'No events were found')
+        {
+          Write-Warning "No NTLM operational events found on $($ComputerName -join ', '). Ensure NTLM auditing policies are configured."
+        }
+        else
+        {
+          Write-Warning "Failed to query NTLM Operational log on $($ComputerName -join ', '): $_"
+        }
+      }
     }
   }
 
-  # NTLM Operational log on remote host(s)
-  if ($IncludeNtlmOperationalLog) {
-    Write-Verbose "Querying Microsoft-Windows-NTLM/Operational log on remote host(s): $($ComputerName -join ', ')"
-    $ntlmOpInvokeParams = @{
-      ScriptBlock  = $ntlmOpRemoteScriptBlock
-      ComputerName = $ComputerName
-      ArgumentList = @($ntlmOpFilter, $NumEvents)
-      ErrorAction  = 'Stop'
-    }
-    if ($Credential -ne [System.Management.Automation.PSCredential]::Empty) {
-      $ntlmOpInvokeParams['Credential'] = $Credential
-    }
-    if ($PSBoundParameters.ContainsKey('Authentication')) {
-      $ntlmOpInvokeParams['Authentication'] = $Authentication
-    }
-    try {
-      $ntlmOpResults = Invoke-Command @ntlmOpInvokeParams |
-      Select-Object $ntlmOpOutputProperties
-      if ($ExcludeNullSessions) {
-        $ntlmOpResults | Where-Object { $_.UserName -and $_.UserName -ne '(NULL)' }
-      }
-      else {
-        $ntlmOpResults
-      }
-    }
-    catch {
-      if ($_.Exception.Message -match 'No events were found') {
-        Write-Warning "No NTLM operational events found on $($ComputerName -join ', '). Ensure NTLM auditing policies are configured."
-      }
-      else {
-        Write-Warning "Failed to query NTLM Operational log on $($ComputerName -join ', '): $_"
-      }
-    }
-  }
-}
-
-#endregion
+  #endregion
 }
