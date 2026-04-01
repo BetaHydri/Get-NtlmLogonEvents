@@ -251,7 +251,7 @@ Describe 'Get-NtlmLogonEvents Function Execution (mocked)' {
         }
 
         It 'Should emit an error if ActiveDirectory module is not available' {
-            $result = Get-NtlmLogonEvents -Target DCs 2>&1
+            $result = Get-NtlmLogonEvents -Target DCs -ErrorAction Continue 2>&1
             $errors = $result | Where-Object { $_ -is [System.Management.Automation.ErrorRecord] }
             $errors | Should -Not -BeNullOrEmpty
         }
@@ -265,7 +265,7 @@ Describe 'Get-NtlmLogonEvents Function Execution (mocked)' {
         }
 
         It 'Should emit an error if ActiveDirectory module is not available for Forest target' {
-            $result = Get-NtlmLogonEvents -Target Forest 2>&1
+            $result = Get-NtlmLogonEvents -Target Forest -ErrorAction Continue 2>&1
             $errors = $result | Where-Object { $_ -is [System.Management.Automation.ErrorRecord] }
             $errors | Should -Not -BeNullOrEmpty
         }
