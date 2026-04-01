@@ -9,25 +9,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Initial Sampler module structure.
 
-## [1.0.0] - 2026-04-01
+## [5.1.0] - 2026-04-01
+
+### Changed
+
+- **Breaking:** Converted monolithic script (v4.6) to Sampler-based PowerShell module.
+  Install via `Install-Module Get-NtlmLogonEvents` instead of dot-sourcing the script.
 
 ### Added
 
-- Converted monolithic script to Sampler-based PowerShell module.
+- Sampler build framework with ModuleBuilder, InvokeBuild, and Pester 5.
 - Public function `Get-NtlmLogonEvents` with full parameter set support.
 - 7 private helper functions: `Build-XPathFilter`, `Build-NtlmOperationalXPathFilter`,
   `Convert-EventToObject`, `Convert-NtlmOperationalEventToObject`,
   `Get-PrivilegedLogonLookup`, `Merge-PrivilegedLogonData`, `Test-NtlmAuditConfiguration`.
-- Support for querying NTLM logon events (4624/4625) from Security log.
-- Support for NTLM Operational log events (8001-8006, 4001-4006).
-- Target modes: Localhost, DCs (domain controllers), Forest (all DCs across forest).
-- ComputerName parameter set for querying specific remote hosts.
-- `-CheckAuditConfig` mode to verify NTLM auditing policy configuration.
-- `-CorrelatePrivileged` to correlate logon events with Event ID 4672.
-- `-OnlyNTLMv1`, `-ExcludeNullSessions`, `-IncludeFailedLogons` filters.
-- `-StartTime` / `-EndTime` date range filtering.
-- `-Credential` and `-Authentication` for cross-domain/remote scenarios.
 - 165 Pester 5 unit tests across 8 test files.
+- Azure Pipelines CI/CD with PowerShell 5.1 and 7.x matrix.
+- Code coverage reporting to Azure DevOps.
+- All features from script v4.6 preserved: NTLM logon events (4624/4625),
+  NTLM Operational log (8001-8006, 4001-4006), Target modes (Localhost/DCs/Forest),
+  ComputerName, CheckAuditConfig, CorrelatePrivileged, OnlyNTLMv1,
+  ExcludeNullSessions, IncludeFailedLogons, StartTime/EndTime,
+  Credential, Authentication, Domain, IncludeMessage.
 - Azure Pipelines CI/CD with PowerShell 5.1 and 7.x matrix.
 - Code coverage reporting to Azure DevOps.
 
