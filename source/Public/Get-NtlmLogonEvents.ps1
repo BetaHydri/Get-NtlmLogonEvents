@@ -1,11 +1,10 @@
-#Requires -Version 5.1
-
+function Get-NtlmLogonEvents {
 <#
     .SYNOPSIS
     Retrieves NTLM logon events (NTLMv1, NTLMv2, LM) from the Windows Security event log.
 
     .DESCRIPTION
-    This script queries the Windows Security event log for NTLM authentication events
+    This function queries the Windows Security event log for NTLM authentication events
     (Event ID 4624 for successful logons, and optionally Event ID 4625 for failed logons).
     It supports filtering by NTLM version, date range, and null sessions.
 
@@ -16,147 +15,147 @@
     or display in the console.
 
     .EXAMPLE
-    .\Get-NtlmLogonEvents.ps1
+    Get-NtlmLogonEvents
 
     Gets the last 30 NTLM logon events (NTLMv1, NTLMv2, LM) from the localhost.
 
     .EXAMPLE
-    .\Get-NtlmLogonEvents.ps1 -NumEvents 10
+    Get-NtlmLogonEvents -NumEvents 10
 
     Gets the last 10 NTLM logon events from the localhost.
 
     .EXAMPLE
-    .\Get-NtlmLogonEvents.ps1 -ComputerName server.contoso.com
+    Get-NtlmLogonEvents -ComputerName server.contoso.com
 
     Gets the last 30 NTLM logon events from server.contoso.com via WinRM.
 
     .EXAMPLE
-    .\Get-NtlmLogonEvents.ps1 -ComputerName server.contoso.com -OnlyNTLMv1
+    Get-NtlmLogonEvents -ComputerName server.contoso.com -OnlyNTLMv1
 
     Gets the last 30 NTLMv1-only logon events from server.contoso.com via WinRM.
 
     .EXAMPLE
-    .\Get-NtlmLogonEvents.ps1 -Target DCs
+    Get-NtlmLogonEvents -Target DCs
 
     Gets the last 30 NTLM logon events on each domain controller.
     Requires WinRM and the ActiveDirectory PowerShell module.
 
     .EXAMPLE
-    .\Get-NtlmLogonEvents.ps1 -Target DCs -Domain child.contoso.com
+    Get-NtlmLogonEvents -Target DCs -Domain child.contoso.com
 
     Gets the last 30 NTLM logon events on each domain controller in the child.contoso.com domain.
     Requires a trust relationship or appropriate credentials.
 
     .EXAMPLE
-    .\Get-NtlmLogonEvents.ps1 -ExcludeNullSessions
+    Get-NtlmLogonEvents -ExcludeNullSessions
 
     Gets the last 30 NTLM logon events excluding ANONYMOUS LOGON (null sessions).
 
     .EXAMPLE
-    .\Get-NtlmLogonEvents.ps1 -StartTime (Get-Date).AddDays(-7) -EndTime (Get-Date)
+    Get-NtlmLogonEvents -StartTime (Get-Date).AddDays(-7) -EndTime (Get-Date)
 
     Gets NTLM logon events from the last 7 days.
 
     .EXAMPLE
-    .\Get-NtlmLogonEvents.ps1 -ComputerName server.contoso.com -Credential (Get-Credential)
+    Get-NtlmLogonEvents -ComputerName server.contoso.com -Credential (Get-Credential)
 
     Connects to server.contoso.com using alternate credentials.
 
     .EXAMPLE
-    .\Get-NtlmLogonEvents.ps1 -ComputerName server.contoso.com -Authentication Negotiate
+    Get-NtlmLogonEvents -ComputerName server.contoso.com -Authentication Negotiate
 
     Connects to server.contoso.com forcing Negotiate authentication (Kerberos with NTLM fallback).
     Useful when Kerberos alone fails due to clock skew, missing SPNs, or workgroup scenarios.
 
     .EXAMPLE
-    .\Get-NtlmLogonEvents.ps1 -ComputerName server.contoso.com -Credential (Get-Credential) -Authentication Negotiate
+    Get-NtlmLogonEvents -ComputerName server.contoso.com -Credential (Get-Credential) -Authentication Negotiate
 
     Connects with explicit credentials and Negotiate authentication (NTLM fallback enabled).
 
     .EXAMPLE
-    .\Get-NtlmLogonEvents.ps1 | Export-Csv -Path .\ntlm_events.csv -NoTypeInformation
+    Get-NtlmLogonEvents | Export-Csv -Path .\ntlm_events.csv -NoTypeInformation
 
     Exports all NTLM logon events to a CSV file.
 
     .EXAMPLE
-    .\Get-NtlmLogonEvents.ps1 -OnlyNTLMv1 -ExcludeNullSessions
+    Get-NtlmLogonEvents -OnlyNTLMv1 -ExcludeNullSessions
 
     Gets the last 30 NTLMv1-only logon events excluding null sessions.
 
     .EXAMPLE
-    .\Get-NtlmLogonEvents.ps1 -IncludeFailedLogons
+    Get-NtlmLogonEvents -IncludeFailedLogons
 
     Gets the last 30 NTLM logon events including failed logon attempts (Event ID 4625).
 
     .EXAMPLE
-    .\Get-NtlmLogonEvents.ps1 -IncludeFailedLogons -OnlyNTLMv1 | Where-Object EventId -eq 4625
+    Get-NtlmLogonEvents -IncludeFailedLogons -OnlyNTLMv1 | Where-Object EventId -eq 4625
 
     Gets only the failed NTLMv1 logon attempts.
 
     .EXAMPLE
-    .\Get-NtlmLogonEvents.ps1 -CorrelatePrivileged
+    Get-NtlmLogonEvents -CorrelatePrivileged
 
     Gets the last 30 NTLM logon events and correlates with Event ID 4672 to identify
     privileged logon sessions. Adds IsPrivileged and PrivilegeList fields to the output.
 
     .EXAMPLE
-    .\Get-NtlmLogonEvents.ps1 -CorrelatePrivileged -ExcludeNullSessions | Where-Object IsPrivileged
+    Get-NtlmLogonEvents -CorrelatePrivileged -ExcludeNullSessions | Where-Object IsPrivileged
 
     Finds NTLM logons that received special privileges (excluding null sessions).
 
     .EXAMPLE
-    .\Get-NtlmLogonEvents.ps1 -ComputerName dc01.contoso.com, dc02.contoso.com -NumEvents 100
+    Get-NtlmLogonEvents -ComputerName dc01.contoso.com, dc02.contoso.com -NumEvents 100
 
     Queries specific domain controllers (or any servers) by name. Accepts multiple hosts.
 
     .EXAMPLE
-    .\Get-NtlmLogonEvents.ps1 -CheckAuditConfig
+    Get-NtlmLogonEvents -CheckAuditConfig
 
     Checks the local machine's NTLM audit and restriction policy configuration.
     Reports whether recommended GPO settings from Microsoft's AD hardening guidance are enabled.
 
     .EXAMPLE
-    .\Get-NtlmLogonEvents.ps1 -CheckAuditConfig -Target DCs
+    Get-NtlmLogonEvents -CheckAuditConfig -Target DCs
 
     Checks NTLM audit configuration on all domain controllers in the current domain.
 
     .EXAMPLE
-    .\Get-NtlmLogonEvents.ps1 -CheckAuditConfig -ComputerName server.contoso.com
+    Get-NtlmLogonEvents -CheckAuditConfig -ComputerName server.contoso.com
 
     Checks NTLM audit configuration on a specific remote server.
 
     .EXAMPLE
-    .\Get-NtlmLogonEvents.ps1 -Target Forest
+    Get-NtlmLogonEvents -Target Forest
 
     Gets the last 30 NTLM logon events on every domain controller across all domains
     in the AD forest. Requires WinRM, the ActiveDirectory PowerShell module, and
     appropriate trust/credentials for each domain.
 
     .EXAMPLE
-    .\Get-NtlmLogonEvents.ps1 -CheckAuditConfig -Target Forest
+    Get-NtlmLogonEvents -CheckAuditConfig -Target Forest
 
     Checks NTLM audit configuration on all domain controllers across the entire forest.
 
     .EXAMPLE
-    .\Get-NtlmLogonEvents.ps1 -IncludeNtlmOperationalLog
+    Get-NtlmLogonEvents -IncludeNtlmOperationalLog
 
     Gets the last 30 NTLM logon events from the Security log AND up to 30 events from the
     Microsoft-Windows-NTLM/Operational log (events 8001-8006 audit, 4001-4006 block).
 
     .EXAMPLE
-    .\Get-NtlmLogonEvents.ps1 -IncludeNtlmOperationalLog -NumEvents 500 |
+    Get-NtlmLogonEvents -IncludeNtlmOperationalLog -NumEvents 500 |
         Where-Object { $_.PSObject.TypeNames -contains 'NtlmOperationalEvent' }
 
     Gets only the NTLM operational log events (includes process-level detail that 4624 lacks).
 
     .EXAMPLE
-    .\Get-NtlmLogonEvents.ps1 -IncludeMessage
+    Get-NtlmLogonEvents -IncludeMessage
 
     Gets the last 30 NTLM logon events and includes the full event Message text in the output.
     Useful for detailed forensic review or exporting human-readable event descriptions.
 
     .EXAMPLE
-    .\Get-NtlmLogonEvents.ps1 -IncludeNtlmOperationalLog -IncludeMessage | Format-List
+    Get-NtlmLogonEvents -IncludeNtlmOperationalLog -IncludeMessage | Format-List
 
     Includes the Message text from both Security log and NTLM Operational log events.
 
@@ -335,617 +334,6 @@ param(
   [System.Management.Automation.Credential()]
   $Credential = [System.Management.Automation.PSCredential]::Empty
 )
-
-#region Helper Functions
-
-function Build-XPathFilter {
-  <#
-    .SYNOPSIS
-    Builds the XPath filter string for querying Event ID 4624 (and optionally 4625) with NTLM constraints.
-    #>
-  [CmdletBinding()]
-  param(
-    [switch]$OnlyNTLMv1,
-    [switch]$ExcludeNullSessions,
-    [switch]$IncludeFailedLogons,
-    [datetime]$StartTime,
-    [datetime]$EndTime
-  )
-
-  # Base: Event ID filter
-  if ($IncludeFailedLogons) {
-    $systemFilters = @('(EventID=4624 or EventID=4625)')
-  }
-  else {
-    $systemFilters = @('EventID=4624')
-  }
-
-  # Time range filters
-  if ($StartTime) {
-    $startUtc = $StartTime.ToUniversalTime().ToString('yyyy-MM-ddTHH:mm:ss.fffZ')
-    $systemFilters += "TimeCreated[@SystemTime>='$startUtc']"
-  }
-  if ($EndTime) {
-    $endUtc = $EndTime.ToUniversalTime().ToString('yyyy-MM-ddTHH:mm:ss.fffZ')
-    $systemFilters += "TimeCreated[@SystemTime<='$endUtc']"
-  }
-
-  $systemPart = "System[($( $systemFilters -join ' and ' ))]"
-
-  # NTLM version filter
-  if ($OnlyNTLMv1) {
-    $ntlmPart = "EventData[Data[@Name='LmPackageName']='NTLM V1']"
-  }
-  else {
-    $ntlmPart = "EventData[Data[@Name='LmPackageName']!='-']"
-  }
-
-  # Null session filter
-  $parts = @("Event[$systemPart]", "Event[$ntlmPart]")
-  if ($ExcludeNullSessions) {
-    $parts += "Event[EventData[Data[@Name='TargetUserName']!='ANONYMOUS LOGON']]"
-  }
-
-  return ($parts -join ' and ')
-}
-
-function Convert-EventToObject {
-  <#
-    .SYNOPSIS
-    Converts a raw Security event 4624 or 4625 into a structured PSCustomObject.
-    #>
-  [CmdletBinding()]
-  param(
-    [Parameter(Mandatory, ValueFromPipeline)]
-    [PSObject]$Event,
-
-    [string]$ComputerName
-  )
-
-  process {
-    # Map ImpersonationLevel replacement strings to human-readable names
-    $impersonationMap = @{
-      '%%1831' = 'Anonymous'
-      '%%1832' = 'Identify'
-      '%%1833' = 'Impersonation'
-      '%%1834' = 'Delegation'
-    }
-
-    # Map LogonType numeric values to human-readable descriptions
-    $logonTypeMap = @{
-      0  = 'System'
-      2  = 'Interactive'
-      3  = 'Network'
-      4  = 'Batch'
-      5  = 'Service'
-      7  = 'Unlock'
-      8  = 'NetworkCleartext'
-      9  = 'NewCredentials'
-      10 = 'RemoteInteractive'
-      11 = 'CachedInteractive'
-      12 = 'CachedRemoteInteractive'
-      13 = 'CachedUnlock'
-    }
-
-    # Map FailureReason replacement strings (%%23xx) to human-readable descriptions
-    $failureReasonMap = @{
-      '%%2304' = 'An error occurred during logon'
-      '%%2305' = 'The specified user account has expired'
-      '%%2306' = 'The NetLogon component is not active'
-      '%%2307' = 'Account locked out'
-      '%%2308' = 'The user has not been granted the requested logon type at this machine'
-      '%%2309' = 'The specified account password has expired'
-      '%%2310' = 'Account currently disabled'
-      '%%2311' = 'Account logon time restriction violation'
-      '%%2312' = 'User not allowed to logon at this computer'
-      '%%2313' = 'Unknown user name or bad password'
-    }
-
-    # Map common NTSTATUS codes (Status/SubStatus) to human-readable descriptions
-    $ntStatusMap = @{
-      '0xC000005E' = 'No logon servers available'
-      '0xC0000064' = 'User logon with misspelled or bad user account'
-      '0xC000006A' = 'User logon with misspelled or bad password'
-      '0xC000006D' = 'Logon failure: unknown user name or bad password'
-      '0xC000006E' = 'User logon with account restriction'
-      '0xC000006F' = 'User logon outside authorized hours'
-      '0xC0000070' = 'User logon from unauthorized workstation'
-      '0xC0000071' = 'User logon with expired password'
-      '0xC0000072' = 'User logon to account disabled by administrator'
-      '0xC00000DC' = 'SAM server is in the wrong state'
-      '0xC0000133' = 'Clocks between DC and other computer too far out of sync'
-      '0xC000015B' = 'The user has not been granted the requested logon type at this machine'
-      '0xC000018C' = 'The trust relationship between the primary domain and the trusted domain failed'
-      '0xC0000192' = 'NetLogon service was not started'
-      '0xC0000193' = 'User logon with expired account'
-      '0xC0000224' = 'User is required to change password at next logon'
-      '0xC0000225' = 'Windows bug — not a risk'
-      '0xC0000234' = 'User logon with account locked'
-      '0xC00002EE' = 'An error occurred during logon'
-      '0xC0000413' = 'Authentication Firewall — logon condition not met'
-    }
-
-    # Detect event type — 4624 and 4625 have different property layouts
-    $eventId = $Event.Id
-    $isFailed = ($eventId -eq 4625)
-
-    if ($isFailed) {
-      # Event ID 4625 property indices (Status/FailureReason/SubStatus at [7]-[9] shift everything)
-      $logonType = $Event.Properties[10].Value
-      $logonProcessName = $Event.Properties[11].Value
-      $authPackageName = $Event.Properties[12].Value
-      $workstationName = $Event.Properties[13].Value
-      $lmPackageName = $Event.Properties[15].Value
-      $processName = $Event.Properties[18].Value
-      $ipAddress = $Event.Properties[19].Value
-      $tcpPort = $Event.Properties[20].Value
-      $impersonationLevel = $null  # 4625 does not have ImpersonationLevel
-      $targetLogonId = $null       # 4625 does not have a logon session ID
-      $status = $Event.Properties[7].Value
-      $failureReason = $Event.Properties[8].Value
-      $subStatus = $Event.Properties[9].Value
-    }
-    else {
-      # Event ID 4624 property indices
-      $logonType = $Event.Properties[8].Value
-      $logonProcessName = $Event.Properties[9].Value
-      $authPackageName = $Event.Properties[10].Value
-      $workstationName = $Event.Properties[11].Value
-      $lmPackageName = $Event.Properties[14].Value
-      $processName = $Event.Properties[17].Value
-      $ipAddress = $Event.Properties[18].Value
-      $tcpPort = $Event.Properties[19].Value
-      $targetLogonId = $Event.Properties[7].Value -as [string]
-      $status = $null
-      $failureReason = $null
-      $subStatus = $null
-
-      $rawImpersonation = $Event.Properties[20].Value -as [string]
-      $impersonationLevel = if ($impersonationMap.ContainsKey($rawImpersonation)) {
-        $impersonationMap[$rawImpersonation]
-      }
-      else {
-        $rawImpersonation
-      }
-    }
-
-    # Enrich LogonType with human-readable name
-    $rawLogonType = $logonType -as [int]
-    $logonType = if ($logonTypeMap.ContainsKey($rawLogonType)) {
-      "$rawLogonType ($($logonTypeMap[$rawLogonType]))"
-    }
-    else {
-      $logonType
-    }
-
-    # Enrich FailureReason replacement string with human-readable text
-    if ($failureReason) {
-      $rawFailureReason = $failureReason -as [string]
-      $failureReason = if ($failureReasonMap.ContainsKey($rawFailureReason)) {
-        $failureReasonMap[$rawFailureReason]
-      }
-      else {
-        $rawFailureReason
-      }
-    }
-
-    # Enrich Status NTSTATUS code with human-readable description
-    if ($status) {
-      $rawStatus = $status -as [string]
-      $status = if ($ntStatusMap.ContainsKey($rawStatus)) {
-        "$rawStatus ($($ntStatusMap[$rawStatus]))"
-      }
-      else {
-        $rawStatus
-      }
-    }
-
-    # Enrich SubStatus NTSTATUS code with human-readable description
-    if ($subStatus) {
-      $rawSubStatus = $subStatus -as [string]
-      $subStatus = if ($ntStatusMap.ContainsKey($rawSubStatus)) {
-        "$rawSubStatus ($($ntStatusMap[$rawSubStatus]))"
-      }
-      else {
-        $rawSubStatus
-      }
-    }
-
-    [PSCustomObject]@{
-      PSTypeName                = 'NtlmLogonEvent'
-      EventId                   = $eventId
-      Time                      = $Event.TimeCreated
-      UserName                  = $Event.Properties[5].Value
-      TargetDomainName          = $Event.Properties[6].Value
-      LogonType                 = $logonType
-      LogonProcessName          = $logonProcessName
-      AuthenticationPackageName = $authPackageName
-      WorkstationName           = $workstationName
-      LmPackageName             = $lmPackageName
-      IPAddress                 = $ipAddress
-      TCPPort                   = $tcpPort
-      ImpersonationLevel        = $impersonationLevel
-      ProcessName               = $processName
-      Status                    = $status
-      FailureReason             = $failureReason
-      SubStatus                 = $subStatus
-      TargetLogonId             = $targetLogonId
-      Message                   = $Event.Message
-      ComputerName              = $ComputerName
-    }
-  }
-}
-
-function Get-PrivilegedLogonLookup {
-  <#
-    .SYNOPSIS
-    Queries Event ID 4672 (special privileges assigned to new logon) and returns
-    a hashtable mapping SubjectLogonId to the assigned privilege list.
-  #>
-  [CmdletBinding()]
-  param(
-    [Parameter(Mandatory)]
-    [datetime]$StartTime,
-
-    [Parameter(Mandatory)]
-    [datetime]$EndTime
-  )
-
-  $startUtc = $StartTime.ToUniversalTime().ToString('yyyy-MM-ddTHH:mm:ss.fffZ')
-  $endUtc = $EndTime.ToUniversalTime().ToString('yyyy-MM-ddTHH:mm:ss.fffZ')
-
-  $xpath4672 = "Event[System[EventID=4672 and TimeCreated[@SystemTime>='$startUtc'] and TimeCreated[@SystemTime<='$endUtc']]]"
-
-  $lookup = @{}
-  try {
-    Get-WinEvent -LogName Security -FilterXPath $xpath4672 -ErrorAction Stop | ForEach-Object {
-      $logonId = $_.Properties[3].Value -as [string]
-      $privileges = ($_.Properties[4].Value -as [string]).Trim()
-      if ($logonId -and -not $lookup.ContainsKey($logonId)) {
-        $lookup[$logonId] = $privileges
-      }
-    }
-  }
-  catch {
-    if ($_.Exception.Message -notmatch 'No events were found') {
-      Write-Warning "Failed to query Event ID 4672 for privilege correlation: $_"
-    }
-  }
-
-  return $lookup
-}
-
-function Merge-PrivilegedLogonData {
-  <#
-    .SYNOPSIS
-    Correlates NTLM logon events with Event ID 4672 privilege data.
-    Adds IsPrivileged and PrivilegeList properties to each event object.
-  #>
-  [CmdletBinding()]
-  param(
-    [Parameter(Mandatory)]
-    [PSObject[]]$Events
-  )
-
-  # Only 4624 events have a valid TargetLogonId for correlation
-  $successEvents = @($Events | Where-Object { $_.EventId -eq 4624 -and $_.TargetLogonId })
-
-  if ($successEvents.Count -eq 0) {
-    # No 4624 events to correlate — add empty properties
-    foreach ($evt in $Events) {
-      $evt | Add-Member -NotePropertyName IsPrivileged -NotePropertyValue $false -Force
-      $evt | Add-Member -NotePropertyName PrivilegeList -NotePropertyValue $null -Force
-    }
-    return
-  }
-
-  $times = $successEvents | ForEach-Object { $_.Time }
-  $earliest = ($times | Measure-Object -Minimum).Minimum.AddSeconds(-2)
-  $latest = ($times | Measure-Object -Maximum).Maximum.AddSeconds(2)
-
-  $lookup = Get-PrivilegedLogonLookup -StartTime $earliest -EndTime $latest
-
-  foreach ($evt in $Events) {
-    if ($evt.EventId -eq 4624 -and $evt.TargetLogonId -and $lookup.ContainsKey($evt.TargetLogonId)) {
-      $evt | Add-Member -NotePropertyName IsPrivileged -NotePropertyValue $true -Force
-      $evt | Add-Member -NotePropertyName PrivilegeList -NotePropertyValue $lookup[$evt.TargetLogonId] -Force
-    }
-    else {
-      $evt | Add-Member -NotePropertyName IsPrivileged -NotePropertyValue $false -Force
-      $evt | Add-Member -NotePropertyName PrivilegeList -NotePropertyValue $null -Force
-    }
-  }
-}
-
-function Build-NtlmOperationalXPathFilter {
-  <#
-    .SYNOPSIS
-    Builds the XPath filter string for querying the Microsoft-Windows-NTLM/Operational log
-    for NTLM audit events (8001-8006) and block events (4001-4006).
-  #>
-  [CmdletBinding()]
-  param(
-    [datetime]$StartTime,
-    [datetime]$EndTime
-  )
-
-  # NTLM audit events (8001-8006) and block events (4001-4006)
-  $eventIdFilter = '(EventID=8001 or EventID=8002 or EventID=8003 or EventID=8004 or EventID=8005 or EventID=8006 or EventID=4001 or EventID=4002 or EventID=4003 or EventID=4004 or EventID=4005 or EventID=4006)'
-  $systemFilters = @($eventIdFilter)
-
-  if ($StartTime) {
-    $startUtc = $StartTime.ToUniversalTime().ToString('yyyy-MM-ddTHH:mm:ss.fffZ')
-    $systemFilters += "TimeCreated[@SystemTime>='$startUtc']"
-  }
-  if ($EndTime) {
-    $endUtc = $EndTime.ToUniversalTime().ToString('yyyy-MM-ddTHH:mm:ss.fffZ')
-    $systemFilters += "TimeCreated[@SystemTime<='$endUtc']"
-  }
-
-  return "*[System[$($systemFilters -join ' and ')]]"
-}
-
-function Convert-NtlmOperationalEventToObject {
-  <#
-    .SYNOPSIS
-    Converts a raw NTLM Operational event (8001-8006, 4001-4006) into a structured PSCustomObject.
-  #>
-  [CmdletBinding()]
-  param(
-    [Parameter(Mandatory, ValueFromPipeline)]
-    [PSObject]$Event,
-
-    [string]$ComputerName
-  )
-
-  process {
-    $eventId = $Event.Id
-    $props = $Event.Properties
-    if (-not $props -or $props.Count -eq 0) {
-      Write-Warning "Skipping Event ID $eventId at $($Event.TimeCreated) — event Properties collection is empty or null."
-      return
-    }
-    $isBlock = ($eventId -ge 4001 -and $eventId -le 4006)
-    $eventType = if ($isBlock) { 'Block' } else { 'Audit' }
-    # Map block event IDs to their audit counterparts for property layout matching
-    $baseId = if ($isBlock) { $eventId + 4000 } else { $eventId }
-
-    $descMap = @{
-      8001 = 'Outgoing NTLM authentication (client-side)'
-      8002 = 'Incoming NTLM authentication (local account / loopback)'
-      8003 = 'Incoming NTLM authentication (domain account, server-side)'
-      8004 = 'NTLM credential validation (domain controller)'
-      8005 = 'Direct NTLM authentication to domain controller'
-      8006 = 'Cross-domain NTLM authentication (domain controller)'
-      4001 = 'Outgoing NTLM blocked (client-side)'
-      4002 = 'Incoming NTLM blocked (local account / loopback)'
-      4003 = 'Incoming NTLM blocked (domain account, server-side)'
-      4004 = 'NTLM credential validation blocked (domain controller)'
-      4005 = 'Direct NTLM authentication blocked (domain controller)'
-      4006 = 'Cross-domain NTLM authentication blocked (domain controller)'
-    }
-
-    # Capture the event message text (contains policy guidance from Windows)
-    $messageText = $Event.Message
-
-    switch ($baseId) {
-      # 8001/4001: Client outgoing — TargetName[0], UserName[1], DomainName[2], CallerPID[3], ProcessName[4]
-      8001 {
-        [PSCustomObject]@{
-          PSTypeName        = 'NtlmOperationalEvent'
-          EventId           = $eventId
-          EventType         = $eventType
-          EventDescription  = $descMap[$eventId]
-          Time              = $Event.TimeCreated
-          UserName          = if ($props.Count -gt 1) { $props[1].Value } else { $null }
-          DomainName        = if ($props.Count -gt 2) { $props[2].Value } else { $null }
-          TargetName        = if ($props.Count -gt 0) { $props[0].Value } else { $null }
-          WorkstationName   = $null
-          SecureChannelName = $null
-          ProcessName       = if ($props.Count -gt 4) { $props[4].Value } else { $null }
-          ProcessId         = if ($props.Count -gt 3) { $props[3].Value } else { $null }
-          Message           = $messageText
-          ComputerName      = $ComputerName
-        }
-      }
-      # 8002/4002: Incoming NTLM (local/loopback) — CallerPID[0], ProcessName[1], ClientLUID[2], ClientUserName[3], ClientDomainName[4]
-      8002 {
-        [PSCustomObject]@{
-          PSTypeName        = 'NtlmOperationalEvent'
-          EventId           = $eventId
-          EventType         = $eventType
-          EventDescription  = $descMap[$eventId]
-          Time              = $Event.TimeCreated
-          UserName          = if ($props.Count -gt 3) { $props[3].Value } else { $null }
-          DomainName        = if ($props.Count -gt 4) { $props[4].Value } else { $null }
-          TargetName        = $null
-          WorkstationName   = $null
-          SecureChannelName = $null
-          ProcessName       = if ($props.Count -gt 1) { $props[1].Value } else { $null }
-          ProcessId         = if ($props.Count -gt 0) { $props[0].Value } else { $null }
-          Message           = $messageText
-          ComputerName      = $ComputerName
-        }
-      }
-      # 8003/4003: Server incoming (domain account) — UserName[0], DomainName[1], Workstation[2], CallerPID[3], ProcessName[4]
-      8003 {
-        [PSCustomObject]@{
-          PSTypeName        = 'NtlmOperationalEvent'
-          EventId           = $eventId
-          EventType         = $eventType
-          EventDescription  = $descMap[$eventId]
-          Time              = $Event.TimeCreated
-          UserName          = if ($props.Count -gt 0) { $props[0].Value } else { $null }
-          DomainName        = if ($props.Count -gt 1) { $props[1].Value } else { $null }
-          TargetName        = $null
-          WorkstationName   = if ($props.Count -gt 2) { $props[2].Value } else { $null }
-          SecureChannelName = $null
-          ProcessName       = if ($props.Count -gt 4) { $props[4].Value } else { $null }
-          ProcessId         = if ($props.Count -gt 3) { $props[3].Value } else { $null }
-          Message           = $messageText
-          ComputerName      = $ComputerName
-        }
-      }
-      # 8004-8006/4004-4006: DC — SChannelName[0], UserName[1], DomainName[2], WorkstationName[3], SChannelType[4]
-      { $_ -in 8004, 8005, 8006 } {
-        [PSCustomObject]@{
-          PSTypeName        = 'NtlmOperationalEvent'
-          EventId           = $eventId
-          EventType         = $eventType
-          EventDescription  = $descMap[$eventId]
-          Time              = $Event.TimeCreated
-          UserName          = if ($props.Count -gt 1) { $props[1].Value } else { $null }
-          DomainName        = if ($props.Count -gt 2) { $props[2].Value } else { $null }
-          TargetName        = $null
-          WorkstationName   = if ($props.Count -gt 3) { $props[3].Value } else { $null }
-          SecureChannelName = if ($props.Count -gt 0) { $props[0].Value } else { $null }
-          ProcessName       = $null
-          ProcessId         = $null
-          Message           = $messageText
-          ComputerName      = $ComputerName
-        }
-      }
-    }
-  }
-}
-
-function Test-NtlmAuditConfiguration {
-  <#
-    .SYNOPSIS
-    Checks the local NTLM audit and restriction policy configuration by reading registry values.
-    Returns NtlmAuditConfig objects showing each policy's current state.
-    Reference: https://techcommunity.microsoft.com/blog/coreinfrastructureandsecurityblog/active-directory-hardening-series---part-8-%E2%80%93-disabling-ntlm/4485782
-  #>
-  [CmdletBinding()]
-  param()
-
-  $msv1_0Path = 'HKLM:\SYSTEM\CurrentControlSet\Control\Lsa\MSV1_0'
-  $netlogonPath = 'HKLM:\SYSTEM\CurrentControlSet\Services\Netlogon\Parameters'
-
-  # Helper to safely read a registry value
-  function Get-RegValue {
-    param([string]$Path, [string]$Name)
-    try {
-      $item = Get-ItemProperty -Path $Path -Name $Name -ErrorAction Stop
-      return $item.$Name
-    }
-    catch { return $null }
-  }
-
-  # Define all policy settings to check
-  $policies = @(
-    @{
-      PolicyName   = 'Network security: Restrict NTLM: Audit Incoming NTLM Traffic'
-      RegistryPath = "$msv1_0Path\AuditReceivingNTLMTraffic"
-      RegPath      = $msv1_0Path
-      ValueName    = 'AuditReceivingNTLMTraffic'
-      ValueMap     = @{ 0 = 'Disable'; 1 = 'Enable auditing for domain accounts'; 2 = 'Enable auditing for all accounts' }
-      Recommended  = 'Enable auditing for domain accounts (safe to enable)'
-      RecTest      = { param($v) $null -ne $v -and [int]$v -ge 1 }
-      Scope        = 'All devices'
-    }
-    @{
-      PolicyName   = 'Network security: Restrict NTLM: Outgoing NTLM traffic to remote servers'
-      RegistryPath = "$msv1_0Path\RestrictSendingNTLMTraffic"
-      RegPath      = $msv1_0Path
-      ValueName    = 'RestrictSendingNTLMTraffic'
-      ValueMap     = @{ 0 = 'Allow all'; 1 = 'Audit all'; 2 = 'Deny all' }
-      Recommended  = 'Audit all (safe — audit only)'
-      RecTest      = { param($v) $null -ne $v -and [int]$v -ge 1 }
-      Scope        = 'All devices'
-    }
-    @{
-      PolicyName   = 'Network security: Restrict NTLM: Incoming NTLM traffic'
-      RegistryPath = "$msv1_0Path\RestrictReceivingNTLMTraffic"
-      RegPath      = $msv1_0Path
-      ValueName    = 'RestrictReceivingNTLMTraffic'
-      ValueMap     = @{ 0 = 'Allow all'; 1 = 'Deny all domain accounts'; 2 = 'Deny all accounts' }
-      Recommended  = 'Deny all domain accounts (final goal — configure only after auditing is complete)'
-      RecTest      = { param($v) $null -ne $v -and [int]$v -ge 1 }
-      Scope        = 'All devices'
-    }
-    @{
-      PolicyName   = 'Network security: Restrict NTLM: Audit NTLM authentication in this domain'
-      RegistryPath = "$netlogonPath\AuditNTLMInDomain"
-      RegPath      = $netlogonPath
-      ValueName    = 'AuditNTLMInDomain'
-      ValueMap     = @{ 0 = 'Disable'; 1 = 'Enable for domain accounts to domain servers'; 3 = 'Enable for domain accounts'; 5 = 'Enable for domain servers'; 7 = 'Enable all' }
-      Recommended  = 'Enable all (safe to enable)'
-      RecTest      = { param($v) $null -ne $v -and [int]$v -eq 7 }
-      Scope        = 'Domain Controllers only'
-    }
-    @{
-      PolicyName   = 'Network security: Restrict NTLM: NTLM authentication in this domain'
-      RegistryPath = "$netlogonPath\RestrictNTLMInDomain"
-      RegPath      = $netlogonPath
-      ValueName    = 'RestrictNTLMInDomain'
-      ValueMap     = @{ 0 = 'Disable'; 1 = 'Deny for domain accounts to domain servers'; 3 = 'Deny for domain accounts'; 5 = 'Deny for domain servers'; 7 = 'Deny all' }
-      Recommended  = 'Deny all (final goal — configure only after auditing is complete)'
-      RecTest      = { param($v) $null -ne $v -and [int]$v -ge 1 }
-      Scope        = 'Domain Controllers only'
-    }
-  )
-
-  foreach ($policy in $policies) {
-    $rawValue = Get-RegValue -Path $policy.RegPath -Name $policy.ValueName
-    $settingText = if ($null -eq $rawValue) {
-      'Not configured'
-    }
-    elseif ($policy.ValueMap.ContainsKey([int]$rawValue)) {
-      $policy.ValueMap[[int]$rawValue]
-    }
-    else {
-      "Unknown ($rawValue)"
-    }
-
-    [PSCustomObject]@{
-      PSTypeName    = 'NtlmAuditConfig'
-      PolicyName    = $policy.PolicyName
-      RegistryPath  = $policy.RegistryPath
-      RawValue      = $rawValue
-      Setting       = $settingText
-      Recommended   = $policy.Recommended
-      IsRecommended = (& $policy.RecTest $rawValue)
-      Scope         = $policy.Scope
-      ComputerName  = $env:COMPUTERNAME
-    }
-  }
-
-  # Check exception lists
-  $clientExceptions = Get-RegValue -Path $msv1_0Path -Name 'ClientAllowedNTLMServers'
-  if ($clientExceptions) {
-    [PSCustomObject]@{
-      PSTypeName    = 'NtlmAuditConfig'
-      PolicyName    = 'Network security: Restrict NTLM: Add remote server exceptions'
-      RegistryPath  = "$msv1_0Path\ClientAllowedNTLMServers"
-      RawValue      = $null
-      Setting       = ($clientExceptions -join ', ')
-      Recommended   = 'Minimize exceptions'
-      IsRecommended = $false
-      Scope         = 'All devices'
-      ComputerName  = $env:COMPUTERNAME
-    }
-  }
-
-  $dcExceptions = Get-RegValue -Path $netlogonPath -Name 'DCAllowedNTLMServers'
-  if ($dcExceptions) {
-    [PSCustomObject]@{
-      PSTypeName    = 'NtlmAuditConfig'
-      PolicyName    = 'Network security: Restrict NTLM: Add server exceptions in this domain'
-      RegistryPath  = "$netlogonPath\DCAllowedNTLMServers"
-      RawValue      = $null
-      Setting       = ($dcExceptions -join ', ')
-      Recommended   = 'Minimize exceptions'
-      IsRecommended = $false
-      Scope         = 'Domain Controllers only'
-      ComputerName  = $env:COMPUTERNAME
-    }
-  }
-}
-
-#endregion
-
-#region Main Logic
 
 # --- CheckAuditConfig standalone mode ---
 if ($CheckAuditConfig) {
@@ -1823,104 +1211,4 @@ elseif ($PSBoundParameters.ContainsKey('ComputerName')) {
 }
 
 #endregion
-
-###############################################################################
-# Reference: Properties (EventData) fields of Event ID 4624 (Successful Logon)
-###############################################################################
-# Index  Property                   Example Value
-# -----  -------------------------  -------------------------------------------
-# [0]    SubjectUserSid             S-1-0-0
-# [1]    SubjectUserName            -
-# [2]    SubjectDomainName          -
-# [3]    SubjectLogonId             0x0
-# [4]    TargetUserSid              S-1-5-7
-# [5]    TargetUserName             ANONYMOUS LOGON
-# [6]    TargetDomainName           NT AUTHORITY
-# [7]    TargetLogonId              0x12cff454c
-# [8]    LogonType                  3
-# [9]    LogonProcessName           NtLmSsp
-# [10]   AuthenticationPackageName  NTLM
-# [11]   WorkstationName            WORKSTATION01
-# [12]   LogonGuid                  {00000000-0000-0000-0000-000000000000}
-# [13]   TransmittedServices        -
-# [14]   LmPackageName              NTLM V1
-# [15]   KeyLength                  128
-# [16]   ProcessId                  0x0
-# [17]   ProcessName                -
-# [18]   IpAddress                  192.168.1.100
-# [19]   IpPort                     58560
-# [20]   ImpersonationLevel         %%1833  (Anonymous/Identify/Impersonation/Delegation)
-
-###############################################################################
-# Reference: Properties (EventData) fields of Event ID 4625 (Failed Logon)
-###############################################################################
-# Index  Property                   Example Value
-# -----  -------------------------  -------------------------------------------
-# [0]    SubjectUserSid             S-1-0-0
-# [1]    SubjectUserName            -
-# [2]    SubjectDomainName          -
-# [3]    SubjectLogonId             0x0
-# [4]    TargetUserSid              S-1-0-0
-# [5]    TargetUserName             jsmith
-# [6]    TargetDomainName           CONTOSO
-# [7]    Status                     0xC000006D  (top-level NTSTATUS code, enriched to human-readable)
-# [8]    FailureReason              %%2313      (reason replacement string, resolved to text)
-# [9]    SubStatus                  0xC0000064  (detailed NTSTATUS code, enriched to human-readable)
-# [10]   LogonType                  3
-# [11]   LogonProcessName           NtLmSsp
-# [12]   AuthenticationPackageName  NTLM
-# [13]   WorkstationName            WORKSTATION01
-# [14]   TransmittedServices        -
-# [15]   LmPackageName              NTLM V1
-# [16]   KeyLength                  0
-# [17]   ProcessId                  0x0
-# [18]   ProcessName                -
-# [19]   IpAddress                  192.168.1.100
-# [20]   IpPort                     58560
-
-###############################################################################
-# Reference: Properties (EventData) fields of Event ID 4672
-#            (Special Privileges Assigned to New Logon)
-###############################################################################
-# Index  Property                   Example Value
-# -----  -------------------------  -------------------------------------------
-# [0]    SubjectUserSid             S-1-5-21-...
-# [1]    SubjectUserName            Administrator
-# [2]    SubjectDomainName          CONTOSO
-# [3]    SubjectLogonId             0x12345  (matches TargetLogonId in Event 4624)
-# [4]    PrivilegeList              SeDebugPrivilege\n\t\t\tSeBackupPrivilege\n\t\t\t...
-
-###############################################################################
-# Reference: Properties (EventData) fields of NTLM Operational Events
-#            (Microsoft-Windows-NTLM/Operational log)
-#            Audit events: 8001-8006 | Block events: 4001-4006
-###############################################################################
-#
-# Event 8001/4001 — Client outgoing NTLM (audit/block)
-# Index  Property         Description
-# -----  ---------------  -------------------------------------------
-# [0]    TargetName       Target server SPN or name (e.g., HTTP/server.contoso.local)
-# [1]    UserName         Authenticating user
-# [2]    DomainName       User's domain
-# [3]    ProcessName      Process initiating the authentication (e.g., msedge.exe)
-# [4]    ClientPID        Process ID of the client process
-#
-# Event 8002/4002 — Server incoming NTLM, local account/loopback (audit/block)
-# Event 8003/4003 — Server incoming NTLM, domain account (audit/block)
-# Index  Property         Description
-# -----  ---------------  -------------------------------------------
-# [0]    UserName         Authenticating user
-# [1]    DomainName       User's domain
-# [2]    WorkstationName  Client device name
-# [3]    ProcessName      Process being accessed (e.g., w3wp.exe)
-# [4]    ProcessPID       Process ID of the server process
-#
-# Event 8004/4004 — DC credential validation (audit/block)
-# Event 8005/4005 — DC direct NTLM authentication (audit/block)
-# Event 8006/4006 — DC cross-domain NTLM authentication (audit/block)
-# Index  Property            Description
-# -----  ------------------  -------------------------------------------
-# [0]    UserName            Authenticating user
-# [1]    DomainName          User's domain
-# [2]    WorkstationName     Client device name
-# [3]    SecureChannelName   Server being authenticated to (secure channel)
+}

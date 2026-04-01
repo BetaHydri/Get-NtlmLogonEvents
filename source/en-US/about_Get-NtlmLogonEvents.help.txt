@@ -1,0 +1,24 @@
+TOPIC
+    about_Get-NtlmLogonEvents
+
+SHORT DESCRIPTION
+    PowerShell script to audit NTLM authentication events from Windows Security and NTLM Operational logs. Filters by NTLMv1/v2, failed logons, privileged sessions (4672), date ranges, and null sessions. Validates NTLM audit GPO settings. Targets localhost, remote servers, domain controllers, or an entire AD forest.
+
+LONG DESCRIPTION
+    PowerShell script to audit NTLM authentication events from Windows Security and NTLM Operational logs. Filters by NTLMv1/v2, failed logons, privileged sessions (4672), date ranges, and null sessions. Validates NTLM audit GPO settings. Targets localhost, remote servers, domain controllers, or an entire AD forest.
+
+EXAMPLES
+    PS C:\> {{ add examples here }}
+
+NOTE:
+    Thank you to all those who contributed to this module, by writing code, sharing opinions, and provided feedback.
+
+TROUBLESHOOTING NOTE:
+    Look out on the Github repository for issues and new releases.
+
+SEE ALSO
+    - {{ Please add Project URI such as github }}}
+
+KEYWORDS
+    {{ Add comma separated keywords here }}
+

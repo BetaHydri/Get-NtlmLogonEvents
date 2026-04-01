@@ -1,0 +1,20 @@
+# Ignore the .vs folder which contains Visual Studio's user-specific settings
+.vs/
+# Sampler build output
+output/
+
+# PowerShell module artifacts
+*.nupkg
+
+# Backup files
+*.bak
+
+# IDE
+*.code-workspace
+
+# OS
+Thumbs.db
+.DS_Store
+
+# Exports from assessment runs
+Exports/
