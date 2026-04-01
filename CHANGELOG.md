@@ -7,25 +7,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- For new features.
+- Initial Sampler module structure.
 
-### Changed
+## [1.0.0] - 2026-04-01
 
-- For changes in existing functionality.
+### Added
 
-### Deprecated
-
-- For soon-to-be removed features.
-
-### Removed
-
-- For now removed features.
-
-### Fixed
-
-- For any bug fix.
-
-### Security
-
-- In case of vulnerabilities.
+- Converted monolithic script to Sampler-based PowerShell module.
+- Public function `Get-NtlmLogonEvents` with full parameter set support.
+- 7 private helper functions: `Build-XPathFilter`, `Build-NtlmOperationalXPathFilter`,
+  `Convert-EventToObject`, `Convert-NtlmOperationalEventToObject`,
+  `Get-PrivilegedLogonLookup`, `Merge-PrivilegedLogonData`, `Test-NtlmAuditConfiguration`.
+- Support for querying NTLM logon events (4624/4625) from Security log.
+- Support for NTLM Operational log events (8001-8006, 4001-4006).
+- Target modes: Localhost, DCs (domain controllers), Forest (all DCs across forest).
+- ComputerName parameter set for querying specific remote hosts.
+- `-CheckAuditConfig` mode to verify NTLM auditing policy configuration.
+- `-CorrelatePrivileged` to correlate logon events with Event ID 4672.
+- `-OnlyNTLMv1`, `-ExcludeNullSessions`, `-IncludeFailedLogons` filters.
+- `-StartTime` / `-EndTime` date range filtering.
+- `-Credential` and `-Authentication` for cross-domain/remote scenarios.
+- 165 Pester 5 unit tests across 8 test files.
+- Azure Pipelines CI/CD with PowerShell 5.1 and 7.x matrix.
+- Code coverage reporting to Azure DevOps.
 
