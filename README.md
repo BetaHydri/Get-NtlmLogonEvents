@@ -883,10 +883,6 @@ Invoke-Pester -Path .\Tests\Get-NtlmLogonEvents.Tests.ps1 -Output Detailed
 | 2.1 | 2023-05-25 | Fixed parameter splatting for optional DateTime parameters; relaxed pipeline type constraint for testability; added comprehensive Pester test suite (60 tests) |
 | 2.0 | 2023-05-04 | Major rewrite: structured output objects, XPath filtering, date range support, credential support, impersonation level translation |
 
-## Contributing
-
-Contributions are welcome! Please open an issue or submit a pull request.
-
 ## License
 
 This project is licensed under the MIT License. See the [LICENSE](LICENSE) file for details.
