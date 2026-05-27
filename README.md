@@ -21,7 +21,7 @@ Install-PSResource -Name Get-NtlmLogonEvents
 
 ## Why This Matters
 
-NTLM (including NTLMv1, NTLMv2, and LM) is a legacy authentication protocol that is vulnerable to relay, brute-force, and pass-the-hash attacks. Microsoft strongly recommends Kerberos authentication instead. This module helps you **find which users, workstations, and applications are still using NTLM** so you can remediate them before enforcing stronger authentication policies.
+NTLM (including NTLMv1, NTLMv2, and LM) is a legacy authentication protocol that is vulnerable to relay, brute-force, and pass-the-hash attacks. Microsoft strongly recommends Kerberos authentication instead. This module helps you **find witch users, workstations, and applications are still using NTLM** so you can remediate them before enforcing stronger authentication policies.
 
 Privileged accounts using NTLM are especially dangerous — they are prime targets for relay and pass-the-hash attacks. The `-CorrelatePrivileged` switch cross-references Event ID 4672 (special privileges assigned to new logon) to flag these high-risk sessions, so you can prioritize them for Kerberos migration.
 
